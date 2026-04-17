@@ -172,6 +172,35 @@ export type LabCapacity = {
   utilizationPercent: number;
 };
 
+// 10. DailyForecast — persisted demand forecast per recipe per day
+export type DailyForecast = {
+  id: string;
+  date: Date;
+  recipeId: string;
+  recipe?: { id: string; name: string };
+  predictedQuantity: number;
+  confidence: number; // 0-100
+  reasoning?: string;
+  sevenDayAverage?: number;
+  fourteenDayAverage?: number;
+  thirtyDayAverage?: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+// 11. ForecastResponse — the shape returned by GET /api/admin/production/forecast
+export type ForecastResponse = {
+  date: Date;
+  recipeId: string;
+  recipe: { id: string; name: string };
+  predictedQuantity: number;
+  confidence: number;
+  reasoning?: string;
+  sevenDayAverage?: number;
+  fourteenDayAverage?: number;
+  thirtyDayAverage?: number;
+};
+
 // ============================================================================
 // ERROR / RESPONSE TYPES
 // ============================================================================

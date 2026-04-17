@@ -438,6 +438,7 @@ model Recipe {
   ingredients       RecipeIngredient[]
   batches           ProductionBatch[]
   producedMaterials RawMaterial[]
+  forecasts         DailyForecast[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -524,6 +525,30 @@ model ProductionBatch {
   @@index([plannedStartTime])
   @@index([createdBy])
   @@index([labId, status])
+}
+
+// 22. DailyForecast — demand forecast per recipe per day
+model DailyForecast {
+  id       String   @id @default(cuid())
+  date     DateTime @db.Date
+  recipeId String
+  recipe   Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  predictedQuantity Int
+  confidence        Int     // 0-100 percentage confidence in prediction
+  reasoning         String?
+
+  // Rollup metrics (for display)
+  sevenDayAverage    Int?
+  fourteenDayAverage Int?
+  thirtyDayAverage   Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, recipeId])
+  @@index([date])
+  @@index([recipeId])
 }
 
 // 21. BatchItem — an individual item produced within a production batch
