@@ -352,6 +352,166 @@ export const CreateBatchItemSchema = z.object({
 export type CreateBatchItemInput = z.infer<typeof CreateBatchItemSchema>;
 
 // ============================================================================
+// WORKFLOW SCHEMAS
+// ============================================================================
+
+const WorkflowConditionSchema = z.object({
+  field: z
+    .string()
+    .min(1, "Condition field is required")
+    .max(200, "Condition field must not exceed 200 characters")
+    .describe('Dot-separated path into the trigger data, e.g. "stock.quantity"'),
+  operator: z
+    .enum(["EQUALS", "GREATER_THAN", "LESS_THAN", "CONTAINS", "STARTS_WITH"])
+    .describe("Comparison operator applied to the field value"),
+  value: z
+    .string()
+    .min(1, "Condition value is required")
+    .max(500, "Condition value must not exceed 500 characters")
+    .describe("The right-hand value of the comparison"),
+})
+
+const WorkflowActionTransferStockConfigSchema = z.object({
+  sourceLab: z.string().min(1),
+  destLab: z.string().min(1),
+  material: z.string().min(1),
+  quantity: z.number().positive(),
+})
+
+const WorkflowActionCreateOrderConfigSchema = z.object({
+  supplier: z.string().min(1),
+  material: z.string().min(1),
+  quantity: z.number().positive(),
+  expectedDelivery: z.string().datetime().optional(),
+})
+
+const WorkflowActionNotificationConfigSchema = z.object({
+  channel: z.enum(["email", "webhook"]),
+  recipient: z.string().min(1),
+  message: z.string().min(1).max(2000),
+})
+
+const WorkflowActionLogEventConfigSchema = z.object({
+  description: z.string().min(1).max(1000),
+})
+
+const WorkflowActionSchema = z.object({
+  type: z.enum([
+    "TRANSFER_STOCK",
+    "CREATE_ORDER",
+    "SEND_NOTIFICATION",
+    "LOG_EVENT",
+  ]),
+  config: z.record(z.any()).describe("Action-specific configuration object"),
+})
+
+const WorkflowStepSchema = z
+  .object({
+    order: z
+      .number()
+      .int("Step order must be a whole number")
+      .positive("Step order must be a positive integer"),
+    type: z.enum(["condition", "action"]),
+    condition: WorkflowConditionSchema.optional(),
+    action: WorkflowActionSchema.optional(),
+    elseStepOrder: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Step order to jump to when this condition is false"),
+  })
+  .superRefine((data, ctx) => {
+    if (data.type === "condition" && !data.condition) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "condition is required for steps of type 'condition'",
+        path: ["condition"],
+      })
+    }
+    if (data.type === "action" && !data.action) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "action is required for steps of type 'action'",
+        path: ["action"],
+      })
+    }
+    if (data.type === "condition" && data.action) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "A condition step must not include an action",
+        path: ["action"],
+      })
+    }
+    if (data.type === "action" && data.condition) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "An action step must not include a condition",
+        path: ["condition"],
+      })
+    }
+  })
+
+export const CreateWorkflowSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Workflow name is required")
+    .max(100, "Workflow name must not exceed 100 characters"),
+  description: z
+    .string()
+    .max(500, "Description must not exceed 500 characters")
+    .optional(),
+  triggerType: z.enum([
+    "BATCH_CREATED",
+    "BATCH_COMPLETED",
+    "LOW_STOCK",
+    "SCHEDULED",
+    "MANUAL",
+  ]),
+  triggerConfig: z
+    .record(z.any())
+    .describe(
+      'Trigger-specific config, e.g. { recipeId: "..." } or { cronExpression: "0 9 * * MON" }',
+    ),
+  steps: z
+    .array(WorkflowStepSchema)
+    .min(1, "At least one step is required")
+    .describe("Ordered array of condition and action steps"),
+})
+
+export type CreateWorkflowInput = z.infer<typeof CreateWorkflowSchema>
+
+export const UpdateWorkflowSchema = z.object({
+  name: z
+    .string()
+    .min(1, "Workflow name is required")
+    .max(100, "Workflow name must not exceed 100 characters")
+    .optional(),
+  description: z
+    .string()
+    .max(500, "Description must not exceed 500 characters")
+    .optional(),
+  enabled: z.boolean().optional(),
+  triggerType: z
+    .enum(["BATCH_CREATED", "BATCH_COMPLETED", "LOW_STOCK", "SCHEDULED", "MANUAL"])
+    .optional(),
+  triggerConfig: z.record(z.any()).optional(),
+  steps: z.array(WorkflowStepSchema).min(1).optional(),
+})
+
+export type UpdateWorkflowInput = z.infer<typeof UpdateWorkflowSchema>
+
+export {
+  WorkflowConditionSchema,
+  WorkflowActionSchema,
+  WorkflowStepSchema,
+  WorkflowActionTransferStockConfigSchema,
+  WorkflowActionCreateOrderConfigSchema,
+  WorkflowActionNotificationConfigSchema,
+  WorkflowActionLogEventConfigSchema,
+}
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

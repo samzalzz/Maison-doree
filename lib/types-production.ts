@@ -202,6 +202,117 @@ export type ForecastResponse = {
 };
 
 // ============================================================================
+// WORKFLOW TYPES
+// ============================================================================
+
+export type WorkflowTriggerType =
+  | 'BATCH_CREATED'
+  | 'BATCH_COMPLETED'
+  | 'LOW_STOCK'
+  | 'SCHEDULED'
+  | 'MANUAL'
+
+export type WorkflowActionType =
+  | 'TRANSFER_STOCK'
+  | 'CREATE_ORDER'
+  | 'SEND_NOTIFICATION'
+  | 'LOG_EVENT'
+
+export type WorkflowConditionOperator =
+  | 'EQUALS'
+  | 'GREATER_THAN'
+  | 'LESS_THAN'
+  | 'CONTAINS'
+  | 'STARTS_WITH'
+
+export type WorkflowCondition = {
+  id: string
+  stepId: string
+  field: string
+  operator: WorkflowConditionOperator
+  value: string
+  createdAt: Date
+}
+
+export type WorkflowAction = {
+  id: string
+  stepId: string
+  type: WorkflowActionType
+  config: Record<string, unknown>
+  createdAt: Date
+}
+
+export type WorkflowStep = {
+  id: string
+  workflowId: string
+  order: number
+  type: 'condition' | 'action'
+  condition?: WorkflowCondition
+  action?: WorkflowAction
+  elseStepOrder?: number | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type Workflow = {
+  id: string
+  name: string
+  description?: string | null
+  enabled: boolean
+  triggerType: WorkflowTriggerType
+  triggerConfig: Record<string, unknown>
+  createdBy: string
+  lastExecuted?: Date | null
+  executionCount: number
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type WorkflowWithSteps = Workflow & {
+  steps: WorkflowStep[]
+}
+
+export type WorkflowExecution = {
+  id: string
+  workflowId: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  errorMessage?: string | null
+  triggerData: Record<string, unknown>
+  results?: Record<string, unknown> | null
+  startedAt: Date
+  completedAt?: Date | null
+}
+
+// Shapes used in the visual canvas editor
+export type CanvasNodeType = 'START' | 'CONDITION' | 'ACTION' | 'END'
+
+export type CanvasNode = {
+  id: string
+  type: CanvasNodeType
+  label: string
+  x: number
+  y: number
+  stepOrder?: number
+  conditionConfig?: {
+    field: string
+    operator: WorkflowConditionOperator
+    value: string
+  }
+  actionConfig?: {
+    type: WorkflowActionType
+    config: Record<string, unknown>
+  }
+  elseStepOrder?: number
+}
+
+export type CanvasEdge = {
+  id: string
+  fromNodeId: string
+  toNodeId: string
+  label?: string // e.g. "true" | "false" | "else"
+}
+
+// ============================================================================
 // ERROR / RESPONSE TYPES
 // ============================================================================
 

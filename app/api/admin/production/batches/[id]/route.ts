@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { withAdminAuth } from '@/lib/auth-middleware'
 import { UpdateBatchStatusSchema } from '@/lib/validators-production'
+import { triggerWorkflows } from '@/lib/workflow-engine'
 
 // ---------------------------------------------------------------------------
 // GET /api/admin/production/batches/[id]  (admin only)
@@ -156,6 +157,21 @@ export const PATCH = withAdminAuth(
           ...(actualCompletionTime && { actualCompletionTime: new Date(actualCompletionTime) }),
         },
       })
+
+      // Fire-and-forget: trigger BATCH_COMPLETED workflows when batch reaches
+      // COMPLETED status. Failures are logged but do not affect the response.
+      if (status === 'COMPLETED') {
+        triggerWorkflows('BATCH_COMPLETED', {
+          batchId: updated.id,
+          batchNumber: updated.batchNumber,
+          labId: updated.labId,
+          recipeId: updated.recipeId,
+          quantity: updated.quantity,
+          actualCompletionTime: updated.actualCompletionTime?.toISOString() ?? null,
+        }).catch((err) =>
+          console.error('[PATCH /api/admin/production/batches/[id]] BATCH_COMPLETED trigger error:', err),
+        )
+      }
 
       return NextResponse.json({ success: true, data: updated })
     } catch (error) {

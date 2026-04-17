@@ -565,3 +565,120 @@ model BatchItem {
 
   @@index([batchId])
 }
+
+// ---------------------------------------------------------------------------
+// WORKFLOW SYSTEM
+// ---------------------------------------------------------------------------
+
+enum WorkflowTriggerType {
+  BATCH_CREATED
+  BATCH_COMPLETED
+  LOW_STOCK
+  SCHEDULED
+  MANUAL
+}
+
+enum WorkflowActionType {
+  TRANSFER_STOCK
+  CREATE_ORDER
+  SEND_NOTIFICATION
+  LOG_EVENT
+}
+
+enum WorkflowConditionOperator {
+  EQUALS
+  GREATER_THAN
+  LESS_THAN
+  CONTAINS
+  STARTS_WITH
+}
+
+// 23. Workflow — a named automation rule with trigger and ordered steps
+model Workflow {
+  id          String              @id @default(cuid())
+  name        String
+  description String?
+  enabled     Boolean             @default(true)
+
+  triggerType   WorkflowTriggerType
+  triggerConfig Json
+
+  steps      WorkflowStep[]
+  executions WorkflowExecution[]
+
+  createdBy      String
+  lastExecuted   DateTime?
+  executionCount Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled])
+  @@index([triggerType])
+}
+
+// 24. WorkflowStep — one ordered node (condition or action) within a workflow
+model WorkflowStep {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  order Int
+  type  String // "condition" | "action"
+
+  condition WorkflowCondition?
+  action    WorkflowAction?
+
+  elseStepOrder Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([workflowId, order])
+  @@index([workflowId])
+}
+
+// 25. WorkflowCondition — a boolean guard attached to a WorkflowStep
+model WorkflowCondition {
+  id     String       @id @default(cuid())
+  stepId String       @unique
+  step   WorkflowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  field    String
+  operator WorkflowConditionOperator
+  value    String
+
+  createdAt DateTime @default(now())
+}
+
+// 26. WorkflowAction — an executable side-effect attached to a WorkflowStep
+model WorkflowAction {
+  id     String       @id @default(cuid())
+  stepId String       @unique
+  step   WorkflowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  type   WorkflowActionType
+  config Json
+
+  createdAt DateTime @default(now())
+}
+
+// 27. WorkflowExecution — one run of a workflow, with status and results
+model WorkflowExecution {
+  id         String   @id @default(cuid())
+  workflowId String
+  workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+
+  status       String  // "pending" | "running" | "completed" | "failed"
+  errorMessage String?
+
+  triggerData Json
+  results     Json?
+
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+
+  @@index([workflowId])
+  @@index([status])
+  @@index([startedAt])
+}

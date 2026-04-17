@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/db/prisma'
 import { withAdminAuth } from '@/lib/auth-middleware'
 import { CreateBatchSchema } from '@/lib/validators-production'
+import { triggerWorkflows } from '@/lib/workflow-engine'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -361,6 +362,20 @@ export const POST = withAdminAuth(async (req: NextRequest, { token }) => {
 
       return created
     })
+
+    // Fire-and-forget: trigger BATCH_CREATED workflows asynchronously.
+    // Errors are swallowed here so a workflow misconfiguration never blocks
+    // batch creation from returning a 201 to the caller.
+    triggerWorkflows('BATCH_CREATED', {
+      batchId: batch.id,
+      batchNumber: batch.batchNumber,
+      labId: batch.labId,
+      recipeId: batch.recipeId,
+      quantity: batch.quantity,
+      plannedStartTime: batch.plannedStartTime?.toISOString(),
+    }).catch((err) =>
+      console.error('[POST /api/admin/production/batches] BATCH_CREATED trigger error:', err),
+    )
 
     return NextResponse.json({ success: true, data: batch }, { status: 201 })
   } catch (error) {
