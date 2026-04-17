@@ -46,6 +46,22 @@ export default function Navbar() {
             >
               Orders
             </Link>
+            {session && (
+              <>
+                <Link
+                  href="/loyalty"
+                  className="text-gray-700 hover:text-amber-600 transition font-medium"
+                >
+                  Loyalty
+                </Link>
+                <Link
+                  href="/ratings"
+                  className="text-gray-700 hover:text-amber-600 transition font-medium"
+                >
+                  Ratings
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Auth Buttons */}
@@ -137,6 +153,23 @@ export default function Navbar() {
             >
               Orders
             </Link>
+            {session && (
+              <>
+                <Link
+                  href="/loyalty"
+                  className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
+                >
+                  Loyalty
+                </Link>
+                <Link
+                  href="/ratings"
+                  className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
+                >
+                  Ratings
+                </Link>
+              </>
+            )}
+
             <hr className="my-4" />
             {session ? (
               <>
