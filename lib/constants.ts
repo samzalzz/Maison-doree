@@ -62,6 +62,15 @@ export const RATING_TYPE = {
   DELIVERY: 'DELIVERY',
 } as const
 
+export const PRODUCT_CATEGORY = {
+  PATES: 'PATES',
+  COOKIES: 'COOKIES',
+  GATEAU: 'GATEAU',
+  BRIOUATES: 'BRIOUATES',
+  CHEBAKIA: 'CHEBAKIA',
+  AUTRES: 'AUTRES',
+} as const
+
 export const POINTS_PER_DINAR = 1
 export const TIER_THRESHOLDS = {
   SILVER: 100,

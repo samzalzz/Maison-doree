@@ -5,6 +5,7 @@ import type {
   TICKET_STATUS,
   PRIORITY,
   RATING_TYPE,
+  PRODUCT_CATEGORY,
 } from './constants'
 
 export type User = {
@@ -32,7 +33,7 @@ export type Product = {
   name: string
   description?: string
   price: number
-  category: string
+  category: typeof PRODUCT_CATEGORY[keyof typeof PRODUCT_CATEGORY]
   stock: number
   minimumStock: number
   photos: string[]
