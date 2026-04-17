@@ -554,9 +554,12 @@ export default function OrderDetailPage() {
             )}
 
             {/* Support Button */}
-            <button className="w-full bg-gray-200 text-gray-900 py-3 rounded-lg hover:bg-gray-300 transition font-semibold">
-              Contact Support
-            </button>
+            <Link
+              href={`/tickets/new?orderId=${order.id}`}
+              className="w-full block text-center bg-gray-200 text-gray-900 py-3 rounded-lg hover:bg-gray-300 transition font-semibold"
+            >
+              Create Support Ticket
+            </Link>
           </div>
         </div>
       </div>

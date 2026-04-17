@@ -60,8 +60,20 @@ export default function Navbar() {
                 >
                   Ratings
                 </Link>
+                <Link
+                  href="/tickets"
+                  className="text-gray-700 hover:text-amber-600 transition font-medium"
+                >
+                  Tickets
+                </Link>
               </>
             )}
+            <Link
+              href="/help"
+              className="text-gray-700 hover:text-amber-600 transition font-medium"
+            >
+              Help
+            </Link>
           </div>
 
           {/* Auth Buttons */}
@@ -167,8 +179,20 @@ export default function Navbar() {
                 >
                   Ratings
                 </Link>
+                <Link
+                  href="/tickets"
+                  className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
+                >
+                  Tickets
+                </Link>
               </>
             )}
+            <Link
+              href="/help"
+              className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
+            >
+              Help
+            </Link>
 
             <hr className="my-4" />
             {session ? (
