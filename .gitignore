@@ -82,3 +82,15 @@ token.txt
 *.temp
 *.bak
 ~*
+
+# Documentation (keep private)
+*.md
+!README.md
+PLAN.md
+DESIGN.md
+SUMMARY.md
+
+# Credit/Attribution
+CREDITS.md
+AUTHORS.md
+CONTRIBUTORS.md
