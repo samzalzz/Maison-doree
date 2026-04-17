@@ -22,12 +22,12 @@ enum Role {
 }
 
 enum OrderStatus {
-  PENDING      // Awaiting payment/confirmation
-  CONFIRMED    // Confirmed, ready for dispatch
-  ASSIGNED     // Assigned to a driver
-  IN_PROGRESS  // Out for delivery
-  DELIVERED    // Delivered
-  CANCELLED    // Cancelled
+  PENDING // Awaiting payment/confirmation
+  CONFIRMED // Confirmed, ready for dispatch
+  ASSIGNED // Assigned to a driver
+  IN_PROGRESS // Out for delivery
+  DELIVERED // Delivered
+  CANCELLED // Cancelled
 }
 
 enum PaymentMethod {
@@ -43,18 +43,18 @@ enum PaymentStatus {
 }
 
 enum DeliveryStatus {
-  UNASSIGNED   // Not yet assigned
-  ASSIGNED     // Assigned to driver
-  ACCEPTED     // Accepted by driver
-  IN_PROGRESS  // Driver has started
-  DELIVERED    // Delivered
-  CANCELLED    // Cancelled
+  UNASSIGNED // Not yet assigned
+  ASSIGNED // Assigned to driver
+  ACCEPTED // Accepted by driver
+  IN_PROGRESS // Driver has started
+  DELIVERED // Delivered
+  CANCELLED // Cancelled
 }
 
 enum Tier {
-  BRONZE  // 0 – 99 MAD spent
-  SILVER  // 100 – 499 MAD spent
-  GOLD    // 500+ MAD spent
+  BRONZE // 0 – 99 MAD spent
+  SILVER // 100 – 499 MAD spent
+  GOLD // 500+ MAD spent
 }
 
 enum RatingType {
@@ -93,19 +93,19 @@ enum ProductCategory {
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
-  passwordHash String?  // null for future OAuth providers
+  passwordHash String? // null for future OAuth providers
   role         Role     @default(CUSTOMER)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   // Relations
-  profile    UserProfile?
-  orders     Order[]
-  loyaltyCard LoyaltyCard?
-  ratings    Rating[]
-  tickets    Ticket[]
+  profile        UserProfile?
+  orders         Order[]
+  loyaltyCard    LoyaltyCard?
+  ratings        Rating[]
+  tickets        Ticket[]
   ticketMessages TicketMessage[]
-  deliveries Delivery[]  @relation("driver")
+  deliveries     Delivery[]      @relation("driver")
 
   @@index([email])
   @@index([role])
@@ -122,7 +122,7 @@ model UserProfile {
   address      String?
   city         String?
   zipCode      String?
-  profilePhoto String?  // local path under /public/uploads/profiles/
+  profilePhoto String? // local path under /public/uploads/profiles/
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
@@ -136,7 +136,7 @@ model Product {
   category     ProductCategory
   stock        Int             @default(0)
   minimumStock Int             @default(10)
-  photos       String[]        // local paths under /public/uploads/products/
+  photos       String[] // local paths under /public/uploads/products/
   isFeatured   Boolean         @default(false)
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
@@ -153,11 +153,11 @@ model Product {
 
 // 4. Packaging — optional packaging choices per product
 model Packaging {
-  id            String  @id @default(cuid())
+  id            String   @id @default(cuid())
   productId     String
-  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
-  name          String  // e.g. "Box", "Gift Box", "Premium Box"
-  priceModifier Decimal @default(0) @db.Decimal(10, 2)
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name          String // e.g. "Box", "Gift Box", "Premium Box"
+  priceModifier Decimal  @default(0) @db.Decimal(10, 2)
   createdAt     DateTime @default(now())
 
   @@index([productId])
@@ -165,15 +165,15 @@ model Packaging {
 
 // 5. Order — a customer purchase
 model Order {
-  id          String      @id @default(cuid())
-  orderNumber String      @unique // e.g. ORD-2026-04-17-001
+  id          String @id @default(cuid())
+  orderNumber String @unique // e.g. ORD-2026-04-17-001
   userId      String
-  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // Pricing
-  subtotal    Decimal @db.Decimal(10, 2)
-  taxAmount   Decimal @db.Decimal(10, 2)
-  totalPrice  Decimal @db.Decimal(10, 2)
+  subtotal   Decimal @db.Decimal(10, 2)
+  taxAmount  Decimal @db.Decimal(10, 2)
+  totalPrice Decimal @db.Decimal(10, 2)
 
   // Status
   status OrderStatus @default(PENDING)
@@ -201,14 +201,14 @@ model Order {
 
 // 6. OrderItem — line items inside an order
 model OrderItem {
-  id             String  @id @default(cuid())
-  orderId        String
-  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  productId      String
-  product        Product @relation(fields: [productId], references: [id])
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
 
   quantity       Int
-  priceAtTime    Decimal @db.Decimal(10, 2)  // price snapshot
+  priceAtTime    Decimal @db.Decimal(10, 2) // price snapshot
   packaging      String? // packaging name chosen, if any
   packagingPrice Decimal @default(0) @db.Decimal(10, 2)
 
@@ -222,9 +222,9 @@ model Payment {
   orderId String @unique
   order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
-  amount  Decimal       @db.Decimal(10, 2)
-  method  PaymentMethod
-  status  PaymentStatus @default(PENDING)
+  amount Decimal       @db.Decimal(10, 2)
+  method PaymentMethod
+  status PaymentStatus @default(PENDING)
 
   // Stripe-specific fields
   stripePaymentId String?
@@ -273,12 +273,12 @@ model Delivery {
 
 // 9. LoyaltyCard — one per customer, tracks points and tier
 model LoyaltyCard {
-  id         String  @id @default(cuid())
-  userId     String  @unique
-  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   points     Int     @default(0)
-  totalSpent Decimal @db.Decimal(10, 2) @default(0)
+  totalSpent Decimal @default(0) @db.Decimal(10, 2)
   tier       Tier    @default(BRONZE)
 
   createdAt DateTime @default(now())
@@ -289,18 +289,18 @@ model LoyaltyCard {
 
 // 10. Rating — product or delivery review left by a customer
 model Rating {
-  id      String  @id @default(cuid())
-  userId  String
-  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   orderId String
-  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   productId String?
   product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   type    RatingType
-  score   Int        // 1–5
+  score   Int // 1–5
   comment String?
 
   createdAt DateTime @default(now())
@@ -313,10 +313,10 @@ model Rating {
 
 // 11. Ticket — customer support request
 model Ticket {
-  id           String  @id @default(cuid())
-  ticketNumber String  @unique // e.g. TKT-2026-04-17-001
+  id           String @id @default(cuid())
+  ticketNumber String @unique // e.g. TKT-2026-04-17-001
   userId       String
-  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   orderId String?
   order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
@@ -328,7 +328,7 @@ model Ticket {
 
   // Relations
   messages    TicketMessage[]
-  attachments String[]  // local paths under /public/uploads/tickets/
+  attachments String[] // local paths under /public/uploads/tickets/
 
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
@@ -350,10 +350,182 @@ model TicketMessage {
   user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   message     String
-  attachments String[]  // local paths under /public/uploads/tickets/
+  attachments String[] // local paths under /public/uploads/tickets/
 
   createdAt DateTime @default(now())
 
   @@index([ticketId])
   @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// PRODUCTION MANAGEMENT
+// ---------------------------------------------------------------------------
+
+enum LabType {
+  PREPARATION
+  ASSEMBLY
+  FINISHING
+}
+
+enum ProductionStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  PAUSED
+  CANCELLED
+}
+
+// 13. ProductionLab — a physical lab where production takes place
+model ProductionLab {
+  id       String  @id @default(cuid())
+  name     String
+  type     LabType
+  capacity Int
+
+  // Relations
+  employees LabEmployee[]
+  machines  Machine[]
+  stock     LabStock[]
+  batches   ProductionBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 14. LabEmployee — an employee assigned to a production lab
+model LabEmployee {
+  id             String        @id @default(cuid())
+  labId          String
+  lab            ProductionLab @relation(fields: [labId], references: [id], onDelete: Cascade)
+  name           String
+  role           String
+  availableHours Int
+
+  // Relations
+  batches ProductionBatch[]
+}
+
+// 15. Machine — a machine available in a lab for production
+model Machine {
+  id               String        @id @default(cuid())
+  labId            String
+  lab              ProductionLab @relation(fields: [labId], references: [id], onDelete: Cascade)
+  name             String
+  type             String
+  batchCapacity    Int
+  cycleTimeMinutes Int
+  available        Boolean       @default(true)
+
+  // Relations
+  batches ProductionBatch[]
+}
+
+// 16. Recipe — a production recipe for creating a product
+model Recipe {
+  id           String  @id @default(cuid())
+  name         String
+  description  String?
+  laborMinutes Int
+
+  // Relations
+  ingredients       RecipeIngredient[]
+  batches           ProductionBatch[]
+  producedMaterials RawMaterial[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// 17. RecipeIngredient — an ingredient (raw or intermediate) used in a recipe
+model RecipeIngredient {
+  id                    String       @id @default(cuid())
+  recipeId              String
+  recipe                Recipe       @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  rawMaterialId         String?
+  rawMaterial           RawMaterial? @relation("RawMaterialIngredients", fields: [rawMaterialId], references: [id], onDelete: SetNull)
+  intermediateProductId String?
+  intermediateProduct   RawMaterial? @relation("IntermediateIngredients", fields: [intermediateProductId], references: [id], onDelete: SetNull)
+  quantity              Decimal      @db.Decimal(10, 2)
+  unit                  String
+}
+
+// 18. RawMaterial — a raw or intermediate material used in production
+model RawMaterial {
+  id                 String  @id @default(cuid())
+  name               String
+  type               String
+  isIntermediate     Boolean @default(false)
+  unit               String
+  productionRecipeId String?
+  productionRecipe   Recipe? @relation(fields: [productionRecipeId], references: [id], onDelete: SetNull)
+
+  // Relations
+  usedInRecipes        RecipeIngredient[] @relation("RawMaterialIngredients")
+  usedAsIntermediateIn RecipeIngredient[] @relation("IntermediateIngredients")
+  stock                LabStock[]
+
+  @@unique([name, type])
+}
+
+// 19. LabStock — current stock of a raw material in a specific lab
+model LabStock {
+  id           String        @id @default(cuid())
+  labId        String
+  lab          ProductionLab @relation(fields: [labId], references: [id], onDelete: Cascade)
+  materialId   String
+  material     RawMaterial   @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  quantity     Decimal       @db.Decimal(10, 2)
+  minThreshold Decimal       @db.Decimal(10, 2)
+  updatedAt    DateTime      @updatedAt
+
+  @@unique([labId, materialId])
+}
+
+// 20. ProductionBatch — a production run for a recipe in a lab
+model ProductionBatch {
+  id                      String           @id @default(cuid())
+  batchNumber             String           @unique
+  labId                   String
+  lab                     ProductionLab    @relation(fields: [labId], references: [id], onDelete: Cascade)
+  recipeId                String
+  recipe                  Recipe           @relation(fields: [recipeId], references: [id])
+  machineId               String?
+  machine                 Machine?         @relation(fields: [machineId], references: [id], onDelete: SetNull)
+  employeeId              String?
+  employee                LabEmployee?     @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  quantity                Int
+  status                  ProductionStatus @default(PLANNED)
+  plannedStartTime        DateTime
+  actualStartTime         DateTime?
+  estimatedCompletionTime DateTime?
+  actualCompletionTime    DateTime?
+  createdBy               String
+
+  // Relations
+  items BatchItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([labId])
+  @@index([recipeId])
+  @@index([status])
+  @@index([plannedStartTime])
+  @@index([createdBy])
+}
+
+// 21. BatchItem — an individual item produced within a production batch
+model BatchItem {
+  id          String          @id @default(cuid())
+  batchId     String
+  batch       ProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Int
+  status      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([batchId])
 }
