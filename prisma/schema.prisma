@@ -391,6 +391,8 @@ model ProductionLab {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([type])
 }
 
 // 14. LabEmployee — an employee assigned to a production lab
@@ -404,6 +406,8 @@ model LabEmployee {
 
   // Relations
   batches ProductionBatch[]
+
+  @@index([labId])
 }
 
 // 15. Machine — a machine available in a lab for production
@@ -419,6 +423,8 @@ model Machine {
 
   // Relations
   batches ProductionBatch[]
+
+  @@index([labId])
 }
 
 // 16. Recipe — a production recipe for creating a product
@@ -448,6 +454,8 @@ model RecipeIngredient {
   intermediateProduct   RawMaterial? @relation("IntermediateIngredients", fields: [intermediateProductId], references: [id], onDelete: SetNull)
   quantity              Decimal      @db.Decimal(10, 2)
   unit                  String
+
+  @@index([recipeId])
 }
 
 // 18. RawMaterial — a raw or intermediate material used in production
@@ -463,9 +471,10 @@ model RawMaterial {
   // Relations
   usedInRecipes        RecipeIngredient[] @relation("RawMaterialIngredients")
   usedAsIntermediateIn RecipeIngredient[] @relation("IntermediateIngredients")
-  stock                LabStock[]
+  labStocks            LabStock[]
 
   @@unique([name, type])
+  @@index([isIntermediate])
 }
 
 // 19. LabStock — current stock of a raw material in a specific lab
@@ -480,6 +489,7 @@ model LabStock {
   updatedAt    DateTime      @updatedAt
 
   @@unique([labId, materialId])
+  @@index([labId])
 }
 
 // 20. ProductionBatch — a production run for a recipe in a lab
@@ -513,6 +523,7 @@ model ProductionBatch {
   @@index([status])
   @@index([plannedStartTime])
   @@index([createdBy])
+  @@index([labId, status])
 }
 
 // 21. BatchItem — an individual item produced within a production batch
