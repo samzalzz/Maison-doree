@@ -1,6 +1,20 @@
 import { z } from "zod";
 
 // ============================================================================
+// REUSABLE VALIDATORS
+// ============================================================================
+
+const unitValidator = z.string().min(1).max(20);
+
+const BATCH_STATUS_VALUES = [
+  "PLANNED",
+  "IN_PROGRESS",
+  "COMPLETED",
+  "PAUSED",
+  "CANCELLED",
+] as const;
+
+// ============================================================================
 // LAB SCHEMAS
 // ============================================================================
 
@@ -56,6 +70,7 @@ export const CreateEmployeeSchema = z.object({
     .describe("Job title or role within the lab"),
   availableHours: z
     .number()
+    .int()
     .min(0, "Available hours cannot be negative")
     .max(168, "Available hours cannot exceed 168 per week")
     .describe("Available working hours per week (0–168)"),
@@ -91,6 +106,11 @@ export const CreateMachineSchema = z.object({
     .int("Cycle time must be a whole number of minutes")
     .positive("Cycle time must be a positive integer")
     .describe("Duration in minutes for a single production cycle"),
+  available: z
+    .boolean()
+    .default(true)
+    .optional()
+    .describe("Whether the machine is available for use (defaults to true)"),
 });
 
 export type CreateMachineInput = z.infer<typeof CreateMachineSchema>;
@@ -126,12 +146,11 @@ const RecipeIngredientSchema = z
     quantity: z
       .number()
       .positive("Ingredient quantity must be positive")
-      .describe("Amount of this ingredient required"),
-    unit: z
-      .string()
-      .min(1, "Unit is required")
-      .max(20, "Unit must not exceed 20 characters")
-      .describe('Unit of measurement, e.g. "kg", "pieces"'),
+      .finite()
+      .describe(
+        "Amount of this ingredient required (matches Prisma Decimal(10,2) type)",
+      ),
+    unit: unitValidator.describe('Unit of measurement, e.g. "kg", "pieces"'),
   })
   .refine(
     (data) =>
@@ -182,11 +201,7 @@ export const CreateRawMaterialSchema = z
       .min(1, "Material type is required")
       .max(50, "Material type must not exceed 50 characters")
       .describe('Category of the material, e.g. "Flour", "Sugar"'),
-    unit: z
-      .string()
-      .min(1, "Unit is required")
-      .max(20, "Unit must not exceed 20 characters")
-      .describe('Unit of measurement, e.g. "kg", "liters"'),
+    unit: unitValidator.describe('Unit of measurement, e.g. "kg", "liters"'),
     isIntermediate: z
       .boolean()
       .default(false)
@@ -283,7 +298,7 @@ export type CreateBatchInput = z.infer<typeof CreateBatchSchema>;
 
 export const UpdateBatchStatusSchema = z.object({
   status: z
-    .enum(["PLANNED", "IN_PROGRESS", "COMPLETED", "PAUSED", "CANCELLED"])
+    .enum(BATCH_STATUS_VALUES)
     .describe("New lifecycle status for the batch"),
   actualStartTime: z
     .string()
