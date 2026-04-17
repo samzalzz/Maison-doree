@@ -1,7 +1,14 @@
 {
   "name": "maison-doree",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=18.17.0"
+  },
   "description": "E-commerce platform for Moroccan pastries",
+  "license": "MIT",
+  "prisma": {
+    "schema": "prisma/schema.prisma"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,9 +23,6 @@
     "next": "14.0.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "typescript": "5.3.3",
-    "@types/react": "18.2.0",
-    "@types/node": "20.10.0",
     "prisma": "5.7.0",
     "@prisma/client": "5.7.0",
     "next-auth": "5.0.0-beta.31",
@@ -26,17 +30,19 @@
     "socket.io": "4.7.0",
     "socket.io-client": "4.7.0",
     "zod": "3.22.0",
-    "tailwindcss": "3.4.0",
-    "postcss": "8.4.0",
-    "autoprefixer": "10.4.0",
-    "redis": "4.6.0",
     "ioredis": "5.3.0",
-    "axios": "1.6.0",
     "bcryptjs": "2.4.0",
     "clsx": "2.0.0",
     "date-fns": "2.30.0"
   },
   "devDependencies": {
+    "typescript": "5.3.3",
+    "@types/react": "18.2.0",
+    "@types/node": "20.10.0",
+    "@types/bcryptjs": "^2.4.3",
+    "tailwindcss": "3.4.0",
+    "postcss": "8.4.0",
+    "autoprefixer": "10.4.0",
     "@testing-library/react": "14.0.0",
     "@testing-library/jest-dom": "6.1.0",
     "jest": "29.7.0",
