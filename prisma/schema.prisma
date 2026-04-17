@@ -1,0 +1,359 @@
+// Prisma Schema — Maison Dorée
+// Database: PostgreSQL
+// Generated: 2026-04-17
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// ENUMS
+// ---------------------------------------------------------------------------
+
+enum Role {
+  CUSTOMER
+  ADMIN
+  DRIVER
+}
+
+enum OrderStatus {
+  PENDING      // Awaiting payment/confirmation
+  CONFIRMED    // Confirmed, ready for dispatch
+  ASSIGNED     // Assigned to a driver
+  IN_PROGRESS  // Out for delivery
+  DELIVERED    // Delivered
+  CANCELLED    // Cancelled
+}
+
+enum PaymentMethod {
+  STRIPE
+  CASH_ON_DELIVERY
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum DeliveryStatus {
+  UNASSIGNED   // Not yet assigned
+  ASSIGNED     // Assigned to driver
+  ACCEPTED     // Accepted by driver
+  IN_PROGRESS  // Driver has started
+  DELIVERED    // Delivered
+  CANCELLED    // Cancelled
+}
+
+enum Tier {
+  BRONZE  // 0 – 99 MAD spent
+  SILVER  // 100 – 499 MAD spent
+  GOLD    // 500+ MAD spent
+}
+
+enum RatingType {
+  PRODUCT
+  DELIVERY
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ProductCategory {
+  PATES
+  COOKIES
+  GATEAU
+  BRIOUATES
+  CHEBAKIA
+  AUTRES
+}
+
+// ---------------------------------------------------------------------------
+// MODELS
+// ---------------------------------------------------------------------------
+
+// 1. User — clients, admins, and drivers share this model
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?  // null for future OAuth providers
+  role         Role     @default(CUSTOMER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  profile    UserProfile?
+  orders     Order[]
+  loyaltyCard LoyaltyCard?
+  ratings    Rating[]
+  tickets    Ticket[]
+  ticketMessages TicketMessage[]
+  deliveries Delivery[]  @relation("driver")
+
+  @@index([email])
+  @@index([role])
+}
+
+// 2. UserProfile — extended info attached to a user
+model UserProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName    String?
+  lastName     String?
+  phone        String?
+  address      String?
+  city         String?
+  zipCode      String?
+  profilePhoto String?  // local path under /public/uploads/profiles/
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// 3. Product — pastry items available for sale
+model Product {
+  id           String          @id @default(cuid())
+  name         String
+  description  String?
+  price        Decimal         @db.Decimal(10, 2)
+  category     ProductCategory
+  stock        Int             @default(0)
+  minimumStock Int             @default(10)
+  photos       String[]        // local paths under /public/uploads/products/
+  isFeatured   Boolean         @default(false)
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  // Relations
+  orderItems OrderItem[]
+  ratings    Rating[]
+  packaging  Packaging[]
+
+  @@index([category])
+  @@index([isFeatured])
+  @@index([stock])
+}
+
+// 4. Packaging — optional packaging choices per product
+model Packaging {
+  id            String  @id @default(cuid())
+  productId     String
+  product       Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  name          String  // e.g. "Box", "Gift Box", "Premium Box"
+  priceModifier Decimal @default(0) @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+
+  @@index([productId])
+}
+
+// 5. Order — a customer purchase
+model Order {
+  id          String      @id @default(cuid())
+  orderNumber String      @unique // e.g. ORD-2026-04-17-001
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Pricing
+  subtotal    Decimal @db.Decimal(10, 2)
+  taxAmount   Decimal @db.Decimal(10, 2)
+  totalPrice  Decimal @db.Decimal(10, 2)
+
+  // Status
+  status OrderStatus @default(PENDING)
+
+  // Delivery address (snapshot at time of order)
+  deliveryAddress String
+  deliveryCity    String
+  deliveryZipCode String
+
+  // Relations
+  items    OrderItem[]
+  payment  Payment?
+  delivery Delivery?
+  ratings  Rating[]
+  tickets  Ticket[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, status])
+}
+
+// 6. OrderItem — line items inside an order
+model OrderItem {
+  id             String  @id @default(cuid())
+  orderId        String
+  order          Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId      String
+  product        Product @relation(fields: [productId], references: [id])
+
+  quantity       Int
+  priceAtTime    Decimal @db.Decimal(10, 2)  // price snapshot
+  packaging      String? // packaging name chosen, if any
+  packagingPrice Decimal @default(0) @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+// 7. Payment — payment record linked one-to-one with an order
+model Payment {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  amount  Decimal       @db.Decimal(10, 2)
+  method  PaymentMethod
+  status  PaymentStatus @default(PENDING)
+
+  // Stripe-specific fields
+  stripePaymentId String?
+  stripeStatus    String?
+
+  // COD-specific fields
+  collectedAmount Decimal? @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([stripePaymentId])
+}
+
+// 8. Delivery — one delivery per order, tracked with geolocation
+model Delivery {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  driverId String?
+  driver   User?   @relation("driver", fields: [driverId], references: [id])
+
+  status DeliveryStatus @default(UNASSIGNED)
+
+  // Real-time location tracking (updated by driver via WebSocket/GPS)
+  currentLat        Decimal?  @db.Decimal(10, 8)
+  currentLng        Decimal?  @db.Decimal(10, 8)
+  locationUpdatedAt DateTime?
+
+  // Timing
+  estimatedDelivery DateTime?
+  actualDelivery    DateTime?
+
+  // Proof of delivery
+  proofPhoto String? // local path under /public/uploads/deliveries/
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([driverId])
+  @@index([status])
+  @@index([driverId, status])
+}
+
+// 9. LoyaltyCard — one per customer, tracks points and tier
+model LoyaltyCard {
+  id         String  @id @default(cuid())
+  userId     String  @unique
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  points     Int     @default(0)
+  totalSpent Decimal @db.Decimal(10, 2) @default(0)
+  tier       Tier    @default(BRONZE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tier])
+}
+
+// 10. Rating — product or delivery review left by a customer
+model Rating {
+  id      String  @id @default(cuid())
+  userId  String
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  orderId String
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  type    RatingType
+  score   Int        // 1–5
+  comment String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([orderId])
+  @@index([productId])
+  @@index([type])
+}
+
+// 11. Ticket — customer support request
+model Ticket {
+  id           String  @id @default(cuid())
+  ticketNumber String  @unique // e.g. TKT-2026-04-17-001
+  userId       String
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String
+  status      TicketStatus @default(OPEN)
+  priority    Priority     @default(MEDIUM)
+
+  // Relations
+  messages    TicketMessage[]
+  attachments String[]  // local paths under /public/uploads/tickets/
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@index([priority])
+  @@index([userId, status])
+}
+
+// 12. TicketMessage — messages within a support ticket thread
+model TicketMessage {
+  id       String @id @default(cuid())
+  ticketId String
+  ticket   Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  message     String
+  attachments String[]  // local paths under /public/uploads/tickets/
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([userId])
+}
