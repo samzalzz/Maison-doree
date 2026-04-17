@@ -512,6 +512,118 @@ export {
 }
 
 // ============================================================================
+// PHASE 4 SCHEMAS
+// ============================================================================
+
+// --- Supplier ---
+
+export const CreateSupplierSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'Supplier name is required')
+    .max(100, 'Supplier name must not exceed 100 characters'),
+  email: z
+    .string()
+    .email('Must be a valid email address')
+    .optional(),
+  phone: z
+    .string()
+    .max(30, 'Phone must not exceed 30 characters')
+    .optional(),
+  leadTimeDays: z
+    .number()
+    .int('Lead time must be a whole number of days')
+    .positive('Lead time must be at least 1 day'),
+  categories: z
+    .array(z.string().min(1).max(50))
+    .min(1, 'At least one category is required')
+    .describe('Types of materials this supplier provides'),
+})
+
+export type CreateSupplierInput = z.infer<typeof CreateSupplierSchema>
+
+export const UpdateSupplierSchema = z.object({
+  name: z
+    .string()
+    .min(1, 'Supplier name is required')
+    .max(100, 'Supplier name must not exceed 100 characters')
+    .optional(),
+  email: z.string().email('Must be a valid email address').optional(),
+  phone: z.string().max(30, 'Phone must not exceed 30 characters').optional(),
+  leadTimeDays: z
+    .number()
+    .int('Lead time must be a whole number of days')
+    .positive('Lead time must be at least 1 day')
+    .optional(),
+  categories: z
+    .array(z.string().min(1).max(50))
+    .min(1, 'At least one category is required')
+    .optional(),
+})
+
+export type UpdateSupplierInput = z.infer<typeof UpdateSupplierSchema>
+
+// --- PurchaseOrder ---
+
+export const CreatePurchaseOrderSchema = z
+  .object({
+    supplierId: z
+      .string()
+      .cuid('supplierId must be a valid CUID'),
+    materialId: z
+      .string()
+      .cuid('materialId must be a valid CUID'),
+    quantity: z
+      .number()
+      .positive('Quantity must be positive'),
+    deliveryDate: z
+      .string()
+      .datetime({ message: 'deliveryDate must be a valid ISO date string' })
+      .describe('Expected delivery date (must be in the future)'),
+    cost: z
+      .number()
+      .positive('Cost must be positive')
+      .optional()
+      .describe('Total cost of the order in local currency'),
+  })
+  .superRefine((data, ctx) => {
+    if (new Date(data.deliveryDate) <= new Date()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'deliveryDate must be in the future',
+        path: ['deliveryDate'],
+      })
+    }
+  })
+
+export type CreatePurchaseOrderInput = z.infer<typeof CreatePurchaseOrderSchema>
+
+export const UpdatePurchaseOrderStatusSchema = z.object({
+  status: z
+    .enum(['pending', 'ordered', 'delivered', 'cancelled'])
+    .describe('New lifecycle status for the purchase order'),
+  deliveredAt: z
+    .string()
+    .datetime({ message: 'deliveredAt must be a valid ISO date string' })
+    .optional()
+    .describe('Timestamp when the order was physically delivered'),
+})
+
+export type UpdatePurchaseOrderStatusInput = z.infer<typeof UpdatePurchaseOrderStatusSchema>
+
+// --- Transfer Suggestion ---
+
+export const DismissTransferSuggestionSchema = z.object({
+  reason: z
+    .string()
+    .max(500, 'Reason must not exceed 500 characters')
+    .optional()
+    .describe('Optional reason for dismissing the suggestion'),
+})
+
+export type DismissTransferSuggestionInput = z.infer<typeof DismissTransferSuggestionSchema>
+
+// ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
 

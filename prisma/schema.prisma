@@ -384,10 +384,12 @@ model ProductionLab {
   capacity Int
 
   // Relations
-  employees LabEmployee[]
-  machines  Machine[]
-  stock     LabStock[]
-  batches   ProductionBatch[]
+  employees            LabEmployee[]
+  machines             Machine[]
+  stock                LabStock[]
+  batches              ProductionBatch[]
+  outboundSuggestions  TransferSuggestion[] @relation("SourceTransfers")
+  inboundSuggestions   TransferSuggestion[] @relation("DestTransfers")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -470,9 +472,11 @@ model RawMaterial {
   productionRecipe   Recipe? @relation(fields: [productionRecipeId], references: [id], onDelete: SetNull)
 
   // Relations
-  usedInRecipes        RecipeIngredient[] @relation("RawMaterialIngredients")
-  usedAsIntermediateIn RecipeIngredient[] @relation("IntermediateIngredients")
+  usedInRecipes        RecipeIngredient[]   @relation("RawMaterialIngredients")
+  usedAsIntermediateIn RecipeIngredient[]   @relation("IntermediateIngredients")
   labStocks            LabStock[]
+  transferSuggestions  TransferSuggestion[]
+  purchaseOrders       PurchaseOrder[]
 
   @@unique([name, type])
   @@index([isIntermediate])
@@ -564,6 +568,76 @@ model BatchItem {
   updatedAt DateTime @updatedAt
 
   @@index([batchId])
+}
+
+// ---------------------------------------------------------------------------
+// PHASE 4: ADVANCED FEATURES
+// ---------------------------------------------------------------------------
+
+// P4-1. TransferSuggestion — predictive inter-lab stock transfer recommendations
+model TransferSuggestion {
+  id          String        @id @default(cuid())
+  sourceLab   ProductionLab @relation("SourceTransfers", fields: [sourceLabId], references: [id], onDelete: Cascade)
+  sourceLabId String
+  destLab     ProductionLab @relation("DestTransfers", fields: [destLabId], references: [id], onDelete: Cascade)
+  destLabId   String
+  material    RawMaterial   @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  materialId  String
+
+  suggestedQuantity Decimal @db.Decimal(10, 2)
+  reasoning         String
+
+  status      String    // "pending" | "executed" | "dismissed"
+  executedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([sourceLabId])
+  @@index([destLabId])
+  @@index([materialId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+// P4-2. Supplier — external suppliers for raw materials
+model Supplier {
+  id           String   @id @default(cuid())
+  name         String
+  email        String?
+  phone        String?
+  leadTimeDays Int
+  categories   String[] // e.g. ["Flour", "Sugar", "Chocolate"]
+
+  purchaseOrders PurchaseOrder[]
+
+  createdAt DateTime @default(now())
+
+  @@index([name])
+}
+
+// P4-3. PurchaseOrder — an order placed with a supplier for a raw material
+model PurchaseOrder {
+  id       String   @id @default(cuid())
+  poNumber String   @unique
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  supplierId String
+
+  material   RawMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  materialId String
+
+  quantity     Decimal   @db.Decimal(10, 2)
+  deliveryDate DateTime
+  status       String    // "pending" | "ordered" | "delivered" | "cancelled"
+  cost         Decimal?  @db.Decimal(12, 2)
+
+  createdAt   DateTime  @default(now())
+  deliveredAt DateTime?
+
+  @@index([supplierId])
+  @@index([materialId])
+  @@index([status])
+  @@index([deliveryDate])
 }
 
 // ---------------------------------------------------------------------------

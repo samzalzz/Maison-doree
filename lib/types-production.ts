@@ -313,6 +313,73 @@ export type CanvasEdge = {
 }
 
 // ============================================================================
+// PHASE 4: ADVANCED FEATURE TYPES
+// ============================================================================
+
+// P4-1. TransferSuggestion
+export type TransferSuggestionStatus = 'pending' | 'executed' | 'dismissed'
+
+export type TransferSuggestion = {
+  id: string
+  sourceLabId: string
+  destLabId: string
+  materialId: string
+  suggestedQuantity: Decimal
+  reasoning: string
+  status: TransferSuggestionStatus
+  executedAt?: Date | null
+  createdAt: Date
+  expiresAt: Date
+}
+
+export type TransferSuggestionWithRelations = TransferSuggestion & {
+  sourceLab: { id: string; name: string }
+  destLab: { id: string; name: string }
+  material: { id: string; name: string; unit: string }
+}
+
+// P4-2. Supplier
+export type Supplier = {
+  id: string
+  name: string
+  email?: string | null
+  phone?: string | null
+  leadTimeDays: number
+  categories: string[]
+  createdAt: Date
+}
+
+// P4-3. PurchaseOrder
+export type PurchaseOrderStatus = 'pending' | 'ordered' | 'delivered' | 'cancelled'
+
+export type PurchaseOrder = {
+  id: string
+  poNumber: string
+  supplierId: string
+  materialId: string
+  quantity: Decimal
+  deliveryDate: Date
+  status: PurchaseOrderStatus
+  cost?: Decimal | null
+  createdAt: Date
+  deliveredAt?: Date | null
+}
+
+export type PurchaseOrderWithRelations = PurchaseOrder & {
+  supplier: { id: string; name: string }
+  material: { id: string; name: string; unit: string }
+}
+
+// P4-4. ML Forecast (mirrors MlForecastResult from lib/ml-forecaster.ts)
+export type MlForecastResponse = {
+  recipeId: string
+  recipe: { id: string; name: string }
+  predictions: number[]
+  confidence: number
+  model: string
+}
+
+// ============================================================================
 // ERROR / RESPONSE TYPES
 // ============================================================================
 
