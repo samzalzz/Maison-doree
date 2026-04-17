@@ -1,3 +1,12 @@
+import type {
+  ORDER_STATUS,
+  DELIVERY_STATUS,
+  PAYMENT_STATUS,
+  TICKET_STATUS,
+  PRIORITY,
+  RATING_TYPE,
+} from './constants'
+
 export type User = {
   id: string
   email: string
@@ -32,6 +41,8 @@ export type Product = {
   updatedAt: Date
 }
 
+export type OrderStatus = typeof ORDER_STATUS[keyof typeof ORDER_STATUS]
+
 export type Order = {
   id: string
   orderNumber: string
@@ -50,14 +61,6 @@ export type Order = {
   updatedAt: Date
 }
 
-export type OrderStatus =
-  | 'PENDING'
-  | 'CONFIRMED'
-  | 'ASSIGNED'
-  | 'IN_PROGRESS'
-  | 'DELIVERED'
-  | 'CANCELLED'
-
 export type OrderItem = {
   id: string
   orderId: string
@@ -68,6 +71,8 @@ export type OrderItem = {
   packaging?: string
   packagingPrice: number
 }
+
+export type PaymentStatus = typeof PAYMENT_STATUS[keyof typeof PAYMENT_STATUS]
 
 export type Payment = {
   id: string
@@ -80,7 +85,7 @@ export type Payment = {
   createdAt: Date
 }
 
-export type PaymentStatus = 'PENDING' | 'COMPLETED' | 'FAILED' | 'REFUNDED'
+export type DeliveryStatus = typeof DELIVERY_STATUS[keyof typeof DELIVERY_STATUS]
 
 export type Delivery = {
   id: string
@@ -97,14 +102,6 @@ export type Delivery = {
   createdAt: Date
 }
 
-export type DeliveryStatus =
-  | 'UNASSIGNED'
-  | 'ASSIGNED'
-  | 'ACCEPTED'
-  | 'IN_PROGRESS'
-  | 'DELIVERED'
-  | 'CANCELLED'
-
 export type LoyaltyCard = {
   id: string
   userId: string
@@ -114,16 +111,21 @@ export type LoyaltyCard = {
   createdAt: Date
 }
 
+export type RatingType = typeof RATING_TYPE[keyof typeof RATING_TYPE]
+
 export type Rating = {
   id: string
   userId: string
   orderId: string
   productId?: string
-  type: 'PRODUCT' | 'DELIVERY'
+  type: RatingType
   score: number
   comment?: string
   createdAt: Date
 }
+
+export type TicketStatus = typeof TICKET_STATUS[keyof typeof TICKET_STATUS]
+export type Priority = typeof PRIORITY[keyof typeof PRIORITY]
 
 export type Ticket = {
   id: string
@@ -139,9 +141,6 @@ export type Ticket = {
   createdAt: Date
   resolvedAt?: Date
 }
-
-export type TicketStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED' | 'CLOSED'
-export type Priority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT'
 
 export type TicketMessage = {
   id: string

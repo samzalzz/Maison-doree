@@ -57,6 +57,11 @@ export const TIER = {
   GOLD: 'GOLD',
 } as const
 
+export const RATING_TYPE = {
+  PRODUCT: 'PRODUCT',
+  DELIVERY: 'DELIVERY',
+} as const
+
 export const POINTS_PER_DINAR = 1
 export const TIER_THRESHOLDS = {
   SILVER: 100,
