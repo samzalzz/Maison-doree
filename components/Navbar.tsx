@@ -29,10 +29,10 @@ export default function Navbar() {
               Home
             </Link>
             <Link
-              href="/products"
+              href="/shop"
               className="text-gray-700 hover:text-amber-600 transition font-medium"
             >
-              Products
+              Shop
             </Link>
             <Link
               href="/cart"
@@ -120,10 +120,10 @@ export default function Navbar() {
               Home
             </Link>
             <Link
-              href="/products"
+              href="/shop"
               className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
             >
-              Products
+              Shop
             </Link>
             <Link
               href="/cart"

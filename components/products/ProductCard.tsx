@@ -38,7 +38,7 @@ export default function ProductCard({
   const imageUrl = photos?.[0] || '/images/placeholder.jpg'
 
   return (
-    <Link href={`/products/${id}`}>
+    <Link href={`/shop/${id}`}>
       <div className="bg-white rounded-lg shadow-md hover:shadow-lg transition overflow-hidden h-full flex flex-col">
         {/* Product Image */}
         <div className="relative h-48 bg-gray-100 overflow-hidden">

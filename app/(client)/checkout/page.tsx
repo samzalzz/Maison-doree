@@ -52,7 +52,7 @@ export default function CheckoutPage() {
       try {
         const productIds = cart.items.map((item) => item.id)
         const responses = await Promise.all(
-          productIds.map((id) => fetch(`/api/products/${id}`)),
+          productIds.map((id) => fetch(`/api/shop/${id}`)),
         )
 
         const products = await Promise.all(responses.map((r) => r.json()))
@@ -169,7 +169,7 @@ export default function CheckoutPage() {
               Please add items to your cart before checking out.
             </p>
             <Link
-              href="/products"
+              href="/shop"
               className="inline-block bg-amber-600 text-white px-8 py-3 rounded-lg hover:bg-amber-700 transition"
             >
               Back to Products

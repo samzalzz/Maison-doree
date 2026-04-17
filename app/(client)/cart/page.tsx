@@ -59,7 +59,7 @@ export default function CartPage() {
               Start shopping to add items to your cart
             </p>
             <Link
-              href="/products"
+              href="/shop"
               className="inline-block bg-amber-600 text-white px-8 py-3 rounded-lg hover:bg-amber-700 transition font-semibold"
             >
               Continue Shopping

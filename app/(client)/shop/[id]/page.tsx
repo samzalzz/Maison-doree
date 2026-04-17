@@ -88,10 +88,10 @@ export default function ProductDetailPage() {
               Product not found
             </h1>
             <Link
-              href="/products"
+              href="/shop"
               className="text-amber-600 hover:text-amber-700 font-medium"
             >
-              Back to Products
+              Back to Shop
             </Link>
           </div>
         </div>
