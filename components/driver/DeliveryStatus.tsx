@@ -1,15 +1,16 @@
 'use client'
 
 import React from 'react'
-import type { Delivery, Order, User, Profile, OrderItem, Product } from '@prisma/client'
+import type { Delivery, Order, Profile, OrderItem, Product } from '@prisma/client'
 
 interface DeliveryStatusProps {
   delivery: Delivery & {
     order: Order & {
-      user: User & {
+      user: {
+        email: string
         profile: Profile | null
       }
-      items: (OrderItem & { product: Product })[]
+      items: (OrderItem & { product: Pick<Product, 'id' | 'name' | 'price'> })[]
     }
   }
 }
