@@ -99,13 +99,16 @@ model User {
   updatedAt    DateTime @updatedAt
 
   // Relations
-  profile        UserProfile?
-  orders         Order[]
-  loyaltyCard    LoyaltyCard?
-  ratings        Rating[]
-  tickets        Ticket[]
-  ticketMessages TicketMessage[]
-  deliveries     Delivery[]      @relation("driver")
+  profile                 UserProfile?
+  orders                  Order[]
+  loyaltyCard             LoyaltyCard?
+  ratings                 Rating[]
+  tickets                 Ticket[]
+  ticketMessages          TicketMessage[]
+  deliveries              Delivery[]               @relation("driver")
+  notifications           Notification[]
+  notificationPreference  NotificationPreference?
+  couponUsages            CouponUsage[]            @relation("CouponUsages")
 
   @@index([email])
   @@index([role])
@@ -184,11 +187,13 @@ model Order {
   deliveryZipCode String
 
   // Relations
-  items    OrderItem[]
-  payment  Payment?
-  delivery Delivery?
-  ratings  Rating[]
-  tickets  Ticket[]
+  items              OrderItem[]
+  payment            Payment?
+  delivery           Delivery?
+  ratings            Rating[]
+  tickets            Ticket[]
+  appliedCoupon      CouponUsage?
+  loyaltyTransaction LoyaltyTransaction? @relation("LoyaltyTransactions")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -280,6 +285,8 @@ model LoyaltyCard {
   points     Int     @default(0)
   totalSpent Decimal @default(0) @db.Decimal(10, 2)
   tier       Tier    @default(BRONZE)
+
+  transactions LoyaltyTransaction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -638,6 +645,179 @@ model PurchaseOrder {
   @@index([materialId])
   @@index([status])
   @@index([deliveryDate])
+}
+
+// ============================================================================
+// PHASE 2: NOTIFICATIONS
+// ============================================================================
+
+enum NotificationChannel {
+  EMAIL
+  SMS
+  IN_APP
+}
+
+enum NotificationType {
+  ORDER_PLACED
+  ORDER_CONFIRMED
+  ORDER_DISPATCHED
+  ORDER_DELIVERED
+  PAYMENT_RECEIVED
+  DELIVERY_ASSIGNED
+  TICKET_RESPONSE
+  LOYALTY_POINTS_EARNED
+}
+
+model Notification {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type     NotificationType
+  title    String
+  message  String
+  metadata Json? // { orderId, deliveryId, ticketId, etc }
+
+  channels NotificationChannel[] @default([IN_APP])
+  read     Boolean               @default(false)
+  readAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+}
+
+model NotificationPreference {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  emailOrders   Boolean @default(true)
+  emailDelivery Boolean @default(true)
+  emailPayment  Boolean @default(true)
+  emailTickets  Boolean @default(true)
+  emailLoyalty  Boolean @default(true)
+
+  smsOrders   Boolean @default(false)
+  smsDelivery Boolean @default(true)
+  smsPayment  Boolean @default(false)
+}
+
+// ============================================================================
+// PHASE 2: LOYALTY TRANSACTIONS
+// ============================================================================
+
+model LoyaltyTransaction {
+  id            String      @id @default(cuid())
+  loyaltyCardId String
+  loyaltyCard   LoyaltyCard @relation(fields: [loyaltyCardId], references: [id], onDelete: Cascade)
+
+  type   String // "PURCHASE" | "REFUND" | "REDEMPTION" | "BONUS" | "EXPIRY"
+  points Int
+  reason String
+
+  orderId String? @unique
+  order   Order?  @relation("LoyaltyTransactions", fields: [orderId], references: [id], onDelete: SetNull)
+
+  expiresAt DateTime? // null = never expires
+  createdAt DateTime  @default(now())
+
+  @@index([loyaltyCardId])
+  @@index([createdAt])
+}
+
+model PointsRule {
+  id   String @id @default(cuid())
+  name String
+  type String // "BASE_PURCHASE" | "CATEGORY_BONUS" | "TIER_BONUS" | "REFERRAL"
+
+  pointsPerUnit Decimal @db.Decimal(5, 2)
+
+  applicableCategory String? // null = all categories
+  minOrderAmount     Decimal? @db.Decimal(10, 2)
+  tierRequired       String? // "SILVER" | "GOLD" | null
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================================
+// PHASE 2: PROMO CODES
+// ============================================================================
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+}
+
+model PromoCoupon {
+  id   String @id @default(cuid())
+  code String @unique // "SPRING20", "GOLD50"
+  name String
+
+  discountType  DiscountType
+  discountValue Decimal      @db.Decimal(10, 2)
+
+  maxUses            Int?
+  usedCount          Int  @default(0)
+  maxUsesPerCustomer Int  @default(1)
+
+  minOrderAmount        Decimal?  @db.Decimal(10, 2)
+  applicableCategories  String[]  @default([]) // [] = all categories
+
+  validFrom DateTime
+  validUntil DateTime
+  isActive   Boolean  @default(true)
+
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  usages CouponUsage[]
+
+  @@index([code])
+  @@index([isActive])
+}
+
+model CouponUsage {
+  id       String      @id @default(cuid())
+  couponId String
+  coupon   PromoCoupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation("CouponUsages", fields: [userId], references: [id])
+
+  discountApplied Decimal  @db.Decimal(10, 2)
+  appliedAt       DateTime @default(now())
+
+  @@index([couponId])
+  @@index([userId])
+}
+
+// ============================================================================
+// PHASE 2: CONTACT FORM
+// ============================================================================
+
+model ContactSubmission {
+  id      String @id @default(cuid())
+  name    String
+  email   String
+  subject String
+  message String
+
+  status String  @default("NEW") // "NEW" | "VIEWED" | "RESPONDED"
+  notes  String? // admin notes
+
+  createdAt   DateTime  @default(now())
+  respondedAt DateTime?
+
+  @@index([status])
+  @@index([createdAt])
 }
 
 // ---------------------------------------------------------------------------
