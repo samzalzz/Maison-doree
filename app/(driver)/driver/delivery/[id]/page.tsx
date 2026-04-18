@@ -23,28 +23,13 @@ export default async function DeliveryPage({
       order: {
         include: {
           user: {
-            select: {
-              email: true,
-              profile: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  phone: true,
-                  address: true,
-                  city: true,
-                  zipCode: true,
-                },
-              },
+            include: {
+              profile: true,
             },
           },
           items: {
             include: {
-              product: {
-                select: {
-                  name: true,
-                  price: true,
-                },
-              },
+              product: true,
             },
           },
         },
@@ -148,7 +133,7 @@ export default async function DeliveryPage({
                 </p>
                 {delivery.currentLat && delivery.currentLng && (
                   <p className="text-xs text-gray-500 mt-2">
-                    Current: {delivery.currentLat}, {delivery.currentLng}
+                    Current: {String(delivery.currentLat)}, {String(delivery.currentLng)}
                   </p>
                 )}
               </div>
