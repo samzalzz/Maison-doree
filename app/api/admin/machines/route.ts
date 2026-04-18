@@ -4,6 +4,59 @@ import { withAdminAuth } from '@/lib/auth-middleware'
 import { CreateMachineSchema } from '@/lib/validators-production'
 
 // ---------------------------------------------------------------------------
+// GET /api/admin/machines  (admin only)
+// ---------------------------------------------------------------------------
+// Returns a paginated list of machines with their parent lab name.
+// Query params:
+//   cursor  — opaque cursor from a previous response (machine id)
+//   take    — page size (default 25, max 100)
+//   labId   — optional filter by lab
+// ---------------------------------------------------------------------------
+
+export const GET = withAdminAuth(async (req: NextRequest) => {
+  try {
+    const { searchParams } = new URL(req.url)
+    const cursor = searchParams.get('cursor') ?? undefined
+    const rawTake = parseInt(searchParams.get('take') ?? '25', 10)
+    const take = Math.min(Math.max(rawTake, 1), 100)
+    const labIdFilter = searchParams.get('labId') ?? undefined
+
+    const where = labIdFilter ? { labId: labIdFilter } : undefined
+
+    const machines = await prisma.machine.findMany({
+      where,
+      take: take + 1,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        lab: { select: { id: true, name: true } },
+      },
+    })
+
+    const hasNextPage = machines.length > take
+    const page = hasNextPage ? machines.slice(0, take) : machines
+    const nextCursor = hasNextPage ? page[page.length - 1].id : null
+
+    const total = await prisma.machine.count({ where })
+
+    return NextResponse.json({
+      success: true,
+      data: page,
+      pagination: { nextCursor, hasNextPage, total },
+    })
+  } catch (error) {
+    console.error('[GET /api/admin/machines] Error:', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to retrieve machines.' },
+      },
+      { status: 500 },
+    )
+  }
+})
+
+// ---------------------------------------------------------------------------
 // POST /api/admin/machines  (admin only)
 // ---------------------------------------------------------------------------
 // Creates a new machine and associates it with the given lab.

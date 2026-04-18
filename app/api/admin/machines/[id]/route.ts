@@ -4,6 +4,62 @@ import { withAdminAuth } from '@/lib/auth-middleware'
 import { UpdateMachineSchema } from '@/lib/validators-production'
 
 // ---------------------------------------------------------------------------
+// DELETE /api/admin/machines/[id]  (admin only)
+// ---------------------------------------------------------------------------
+// Permanently deletes a machine. Machines with active batch assignments will
+// return 409 to prevent data inconsistency.
+// ---------------------------------------------------------------------------
+
+export const DELETE = withAdminAuth(
+  async (_req: NextRequest, { params }) => {
+    try {
+      const { id } = params as { id: string }
+
+      const existing = await prisma.machine.findUnique({
+        where: { id },
+        include: { _count: { select: { batches: true } } },
+      })
+
+      if (!existing) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: { code: 'NOT_FOUND', message: `Machine '${id}' was not found.` },
+          },
+          { status: 404 },
+        )
+      }
+
+      if (existing._count.batches > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'CONFLICT',
+              message: `Cannot delete machine "${existing.name}" — it has ${existing._count.batches} batch record(s). Unassign it from all batches first.`,
+            },
+          },
+          { status: 409 },
+        )
+      }
+
+      await prisma.machine.delete({ where: { id } })
+
+      return NextResponse.json({ success: true, data: { id } })
+    } catch (error) {
+      console.error('[DELETE /api/admin/machines/[id]] Error:', error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'INTERNAL_ERROR', message: 'Failed to delete machine.' },
+        },
+        { status: 500 },
+      )
+    }
+  },
+)
+
+// ---------------------------------------------------------------------------
 // PATCH /api/admin/machines/[id]  (admin only)
 // ---------------------------------------------------------------------------
 // Partial update of a machine's mutable fields (name, available).

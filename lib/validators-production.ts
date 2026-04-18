@@ -232,6 +232,49 @@ export const CreateRawMaterialSchema = z
 
 export type CreateRawMaterialInput = z.infer<typeof CreateRawMaterialSchema>;
 
+// Partial update schema — same fields, all optional, same cross-field rule.
+// Defined separately from CreateRawMaterialSchema because ZodEffects (produced
+// by .superRefine) does not expose .partial(), so we need a plain ZodObject base.
+export const UpdateRawMaterialSchema = z
+  .object({
+    name: z
+      .string()
+      .min(1, "Material name is required")
+      .max(100, "Material name must not exceed 100 characters")
+      .optional(),
+    type: z
+      .string()
+      .min(1, "Material type is required")
+      .max(50, "Material type must not exceed 50 characters")
+      .optional(),
+    unit: unitValidator.optional(),
+    isIntermediate: z.boolean().optional(),
+    productionRecipeId: z
+      .string()
+      .cuid("productionRecipeId must be a valid CUID")
+      .optional(),
+  })
+  .superRefine((data, ctx) => {
+    // Only enforce cross-field rules when both sides are present in the payload
+    if (data.isIntermediate === true && !data.productionRecipeId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "productionRecipeId is required when isIntermediate is true",
+        path: ["productionRecipeId"],
+      });
+    }
+    if (data.isIntermediate === false && data.productionRecipeId !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "productionRecipeId should only be set when isIntermediate is true",
+        path: ["productionRecipeId"],
+      });
+    }
+  });
+
+export type UpdateRawMaterialInput = z.infer<typeof UpdateRawMaterialSchema>;
+
 // ============================================================================
 // BATCH SCHEMAS
 // ============================================================================
