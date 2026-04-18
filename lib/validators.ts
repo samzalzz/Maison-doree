@@ -144,6 +144,28 @@ export const UpdateOrderStatusSchema = z.object({
 
 export type UpdateOrderStatusInput = z.infer<typeof UpdateOrderStatusSchema>
 
+// Admin-facing create order schema.
+// Delivery address fields are optional because the admin may be creating an
+// in-store/phone order where a physical address is not yet known.
+export const CreateAdminOrderSchema = z.object({
+  userId: z.string().min(1, 'Customer ID is required'),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().min(1, 'Product ID is required'),
+        quantity: z.number().int().positive('Quantity must be at least 1'),
+        packaging: z.string().optional().nullable(),
+      }),
+    )
+    .min(1, 'At least one item is required'),
+  paymentMethod: z.enum(['STRIPE', 'CASH_ON_DELIVERY']),
+  deliveryAddress: z.string().min(1).max(255).optional().default('Admin order'),
+  deliveryCity: z.string().min(1).max(100).optional().default('N/A'),
+  deliveryZipCode: z.string().min(1).max(20).optional().default('00000'),
+})
+
+export type CreateAdminOrderInput = z.infer<typeof CreateAdminOrderSchema>
+
 // ============================================================================
 // PAYMENT SCHEMAS
 // ============================================================================

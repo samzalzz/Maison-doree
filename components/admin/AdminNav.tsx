@@ -29,6 +29,7 @@ const navSections: NavSection[] = [
     title: 'E-commerce',
     items: [
       { label: 'Products', href: '/admin/products', icon: '📦' },
+      { label: 'Orders',   href: '/admin/orders',   icon: '🛒' },
       { label: 'Coupons',  href: '/admin/coupons',  icon: '🏷️' },
     ],
   },
