@@ -51,6 +51,10 @@ redis-data/
 # Prisma
 .prisma/
 
+# TypeScript
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
 # Environment secrets (be explicit)
 .env
 .env.*.local
