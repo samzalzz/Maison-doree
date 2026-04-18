@@ -450,6 +450,7 @@ model Recipe {
   forecasts         DailyForecast[]
   workflow          RecipeWorkflow?
   versions          RecipeVersion[]
+  enhancedForecasts EnhancedForecast[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -504,6 +505,8 @@ model RawMaterial {
   qualityInspections      QualityInspection[]
   recipeVersionIngredients    RecipeVersionIngredient[] @relation("RawMaterialVersion")
   recipeVersionIntermediates  RecipeVersionIngredient[] @relation("IntermediateVersionUsage")
+  mrpSuggestions          MRPSuggestion[]
+  materialAllocations     MaterialAllocation[]
 
   @@unique([name, type])
   @@index([isIntermediate])
@@ -545,8 +548,10 @@ model ProductionBatch {
   createdBy               String
 
   // Relations
-  items              BatchItem[]
-  qualityInspections QualityInspection[]
+  items                BatchItem[]
+  qualityInspections   QualityInspection[]
+  materialAllocations  MaterialAllocation[]
+  traceabilityRecords  TraceabilityRecord[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -639,6 +644,7 @@ model Supplier {
 
   purchaseOrders     PurchaseOrder[]
   qualityInspections QualityInspection[]
+  mrpSuggestions     MRPSuggestion[]
 
   createdAt DateTime @default(now())
 
@@ -1104,4 +1110,98 @@ model RecipeVersionHistory {
 
   @@index([recipeVersionId])
   @@index([changeDate])
+}
+
+// ============================================================================
+// PHASE 1 SAP: PRODUCTION PLANNING (PP) & TRACEABILITY
+// ============================================================================
+
+// PP-1. EnhancedForecast — ML-assisted demand forecast per recipe per day
+model EnhancedForecast {
+  id       String   @id @default(cuid())
+  date     DateTime
+  recipeId String
+  recipe   Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  predictedQuantity Int
+  confidenceLevel   Int     // 0-100
+
+  sevenDayAvg      Decimal? @db.Decimal(10, 2)
+  thirtyDayAvg     Decimal? @db.Decimal(10, 2)
+  seasonalFactor   Decimal? @db.Decimal(10, 4)
+  dayOfWeekPattern Decimal? @db.Decimal(10, 4)
+
+  mlPrediction  Int?
+  mlConfidence  Int?
+
+  // SIMPLE_AVERAGE | SEASONAL | HYBRID_RULES_ML
+  algorithm String
+  reasoning String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([date, recipeId])
+  @@index([date])
+  @@index([recipeId])
+}
+
+// PP-2. MRPSuggestion — a material requirements planning reorder recommendation
+model MRPSuggestion {
+  id         String      @id @default(cuid())
+  materialId String
+  material   RawMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  currentStock    Decimal @db.Decimal(10, 2)
+  minThreshold    Decimal @db.Decimal(10, 2)
+  maxCapacity     Decimal? @db.Decimal(10, 2)
+  projectedUsage  Decimal @db.Decimal(10, 2)
+  projectedDate   DateTime
+  recommendedQty  Decimal @db.Decimal(10, 2)
+
+  // PENDING | ORDERED | COMPLETED | DISMISSED
+  status        String
+  createdAt     DateTime  @default(now())
+  dismissedAt   DateTime?
+  dismissReason String?
+
+  @@index([materialId])
+  @@index([status])
+  @@index([projectedDate])
+}
+
+// PP-3. MaterialAllocation — links a raw material to a production batch with quantities
+model MaterialAllocation {
+  id         String          @id @default(cuid())
+  batchId    String
+  batch      ProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  materialId String
+  material   RawMaterial     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  allocatedQty Decimal  @db.Decimal(10, 2)
+  actualQty    Decimal? @db.Decimal(10, 2)
+  allocatedAt  DateTime @default(now())
+
+  @@unique([batchId, materialId])
+  @@index([batchId])
+}
+
+// TR-1. TraceabilityRecord — immutable event log for batch genealogy and recall tracking
+model TraceabilityRecord {
+  id      String          @id @default(cuid())
+  batchId String
+  batch   ProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  // MATERIAL_ALLOCATED | PRODUCTION_STARTED | PRODUCTION_COMPLETED | SHIPPED | RECALL
+  event      String
+  details    String
+  location   String?
+  timestamp  DateTime @default(now())
+  recordedBy String   // admin user ID
+
+  @@index([batchId])
+  @@index([timestamp])
 }
