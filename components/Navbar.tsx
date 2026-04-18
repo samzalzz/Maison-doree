@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { useSession, signOut } from 'next-auth/react'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 
 export default function Navbar() {
   const { data: session } = useSession()
@@ -80,6 +81,7 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-4">
             {session ? (
               <div className="flex items-center gap-4">
+                <NotificationBell />
                 <span className="text-gray-700 font-medium">
                   {session.user?.name || session.user?.email}
                 </span>
