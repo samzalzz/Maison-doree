@@ -1,11 +1,9 @@
-'use client'
-
 export const dynamic = 'force-dynamic'
 
 import React from 'react'
 import Navbar from '@/components/Navbar'
 import Footer from '@/components/Footer'
-import { CartProvider } from '@/lib/context/CartContext'
+import ClientCartProvider from '@/components/ClientCartProvider'
 
 export default function ClientLayout({
   children,
@@ -13,10 +11,10 @@ export default function ClientLayout({
   children: React.ReactNode
 }) {
   return (
-    <CartProvider>
+    <ClientCartProvider>
       <Navbar />
       <main className="min-h-screen">{children}</main>
       <Footer />
-    </CartProvider>
+    </ClientCartProvider>
   )
 }
