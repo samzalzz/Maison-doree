@@ -15,6 +15,7 @@ export default function AdminNav() {
     { label: 'Analytics', href: '/admin/analytics', icon: '📉' },
     { label: 'Products', href: '/admin/products', icon: '📦' },
     { label: 'Stock', href: '/admin/stocks', icon: '📈' },
+    { label: 'Coupons', href: '/admin/coupons', icon: '🏷️' },
     { label: 'Production', href: '/admin/production/dashboard', icon: '🏭' },
     { label: 'Forecasting', href: '/admin/production/forecast', icon: '📅' },
   ]
