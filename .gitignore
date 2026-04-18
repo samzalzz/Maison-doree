@@ -46,6 +46,7 @@ Thumbs.db
 postgres-data/
 redis-data/
 *.sql
+!prisma/migrations/**/*.sql
 *.sql.gz
 
 # Prisma
