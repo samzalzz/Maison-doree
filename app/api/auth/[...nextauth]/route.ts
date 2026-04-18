@@ -1,5 +1,4 @@
-import NextAuth from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { handlers } from '@/lib/auth'
 
 /**
  * NextAuth.js v5 App Router route handler.
@@ -11,5 +10,4 @@ import { authOptions } from '@/lib/auth'
  *   GET  – session retrieval, OAuth redirects, CSRF token
  *   POST – sign-in / sign-out form submissions
  */
-const handler = NextAuth(authOptions)
-export { handler as GET, handler as POST }
+export const { GET, POST } = handlers
