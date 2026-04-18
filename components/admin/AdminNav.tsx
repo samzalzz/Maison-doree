@@ -12,6 +12,7 @@ export default function AdminNav() {
 
   const navItems = [
     { label: 'Dashboard', href: '/admin/dashboard', icon: '📊' },
+    { label: 'Analytics', href: '/admin/analytics', icon: '📉' },
     { label: 'Products', href: '/admin/products', icon: '📦' },
     { label: 'Stock', href: '/admin/stocks', icon: '📈' },
     { label: 'Production', href: '/admin/production/dashboard', icon: '🏭' },
