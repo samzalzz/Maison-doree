@@ -5,6 +5,8 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCart } from '@/lib/hooks/useCart'
 import { useSession } from 'next-auth/react'
+import { CouponInput } from '@/components/checkout/CouponInput'
+import { CouponApplied } from '@/components/checkout/CouponApplied'
 
 interface CheckoutFormData {
   firstName: string
@@ -18,14 +20,28 @@ interface CheckoutFormData {
   paymentMethod: 'card' | 'cash'
 }
 
+interface AppliedCoupon {
+  code: string
+  discount: number
+  couponId: string
+}
+
+interface ProductData {
+  data?: { id: string; price: number }
+  id?: string
+  price?: number
+}
+
 export default function CheckoutPage() {
   const router = useRouter()
   const { data: session } = useSession()
   const { cart, isLoaded, clearCart } = useCart()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [subtotal, setSubtotal] = useState(0)
-  const [cartTotal, setCartTotal] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
+
+  // Coupon state
+  const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null)
 
   const [formData, setFormData] = useState<CheckoutFormData>({
     firstName: session?.user?.name?.split(' ')[0] || '',
@@ -39,12 +55,11 @@ export default function CheckoutPage() {
     paymentMethod: 'cash',
   })
 
-  // Calculate cart total
+  // Calculate cart subtotal
   useEffect(() => {
     const calculateTotal = async () => {
       if (cart.items.length === 0) {
         setSubtotal(0)
-        setCartTotal(0)
         setIsLoading(false)
         return
       }
@@ -55,22 +70,22 @@ export default function CheckoutPage() {
           productIds.map((id) => fetch(`/api/shop/${id}`)),
         )
 
-        const products = await Promise.all(responses.map((r) => r.json()))
+        const products: ProductData[] = await Promise.all(
+          responses.map((r) => r.json()),
+        )
 
         let total = 0
         cart.items.forEach((item) => {
-          const product = products.find((p) => p.data?.id === item.id || p.id === item.id)
+          const product = products.find(
+            (p) => p.data?.id === item.id || p.id === item.id,
+          )
           if (product) {
-            const price = product.data?.price || product.price || 0
+            const price = product.data?.price ?? product.price ?? 0
             total += price * item.quantity
           }
         })
 
         setSubtotal(total)
-
-        const shipping = total > 50 ? 0 : 5
-        const tax = total * 0.1
-        setCartTotal(total + shipping + tax)
       } finally {
         setIsLoading(false)
       }
@@ -83,11 +98,16 @@ export default function CheckoutPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+    setFormData((prev) => ({ ...prev, [name]: value }))
   }
+
+  // Derived totals
+  const couponDiscount = appliedCoupon?.discount ?? 0
+  const shipping = subtotal > 50 ? 0 : 5
+  const tax = subtotal * 0.1
+  const cartTotal = Math.max(0, subtotal - couponDiscount + shipping + tax)
+
+  const cartItemIds = cart.items.map((item) => item.id)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -100,13 +120,11 @@ export default function CheckoutPage() {
     setIsSubmitting(true)
 
     try {
-      // Map cart items to order items format
       const orderItems = cart.items.map((item) => ({
         productId: item.id,
         quantity: item.quantity,
       }))
 
-      // Map payment method to expected enum
       const paymentMethod =
         formData.paymentMethod === 'card' ? 'STRIPE' : 'CASH_ON_DELIVERY'
 
@@ -129,12 +147,31 @@ export default function CheckoutPage() {
       }
 
       const orderData = await orderResponse.json()
+      const orderId: string = orderData.data.id
 
-      // Clear cart
+      // Apply coupon server-side now that order exists
+      if (appliedCoupon) {
+        try {
+          const couponRes = await fetch('/api/coupons/apply', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              orderId,
+              code: appliedCoupon.code,
+              discountAmount: appliedCoupon.discount,
+            }),
+          })
+
+          if (!couponRes.ok) {
+            console.warn('Coupon application failed — order still placed.')
+          }
+        } catch (couponErr) {
+          console.warn('Coupon apply error (non-fatal):', couponErr)
+        }
+      }
+
       clearCart()
-
-      // Redirect to order confirmation
-      router.push(`/orders/${orderData.data.id}`)
+      router.push(`/orders/${orderId}`)
     } catch (error) {
       console.error('Checkout error:', error)
       alert(
@@ -180,9 +217,6 @@ export default function CheckoutPage() {
     )
   }
 
-  const shipping = subtotal > 50 ? 0 : 5
-  const tax = subtotal * 0.1
-
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -193,7 +227,7 @@ export default function CheckoutPage() {
             href="/cart"
             className="text-amber-600 hover:text-amber-700 font-medium mt-2 inline-block"
           >
-            ← Back to Cart
+            Back to Cart
           </Link>
         </div>
 
@@ -321,6 +355,30 @@ export default function CheckoutPage() {
                 </div>
               </div>
 
+              {/* Promo Code Section */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">
+                  Promo Code
+                </h2>
+
+                {appliedCoupon ? (
+                  <CouponApplied
+                    code={appliedCoupon.code}
+                    discount={appliedCoupon.discount}
+                    couponId={appliedCoupon.couponId}
+                    onRemove={() => setAppliedCoupon(null)}
+                    disabled={isSubmitting}
+                  />
+                ) : (
+                  <CouponInput
+                    cartTotal={subtotal}
+                    cartItemIds={cartItemIds}
+                    onCouponApplied={(data) => setAppliedCoupon(data)}
+                    disabled={isSubmitting || isLoading}
+                  />
+                )}
+              </div>
+
               {/* Payment Method */}
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">
@@ -392,28 +450,48 @@ export default function CheckoutPage() {
                   <div className="space-y-3 mb-4 pb-4 border-b border-gray-200">
                     <div className="flex justify-between text-gray-700">
                       <span>Subtotal</span>
-                      <span>${subtotal.toFixed(2)}</span>
+                      <span>{subtotal.toFixed(2)} MAD</span>
                     </div>
+
+                    {/* Coupon discount line */}
+                    {appliedCoupon && couponDiscount > 0 && (
+                      <div className="flex justify-between text-green-700 font-medium">
+                        <span className="flex items-center gap-1">
+                          <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded font-bold">
+                            {appliedCoupon.code}
+                          </span>
+                          Discount
+                        </span>
+                        <span>-{couponDiscount.toFixed(2)} MAD</span>
+                      </div>
+                    )}
+
                     <div className="flex justify-between text-gray-700">
                       <span>Shipping</span>
                       <span className="text-green-600 font-medium">
-                        {shipping === 0 ? 'Free' : `$${shipping.toFixed(2)}`}
+                        {shipping === 0 ? 'Free' : `${shipping.toFixed(2)} MAD`}
                       </span>
                     </div>
                     <div className="flex justify-between text-gray-700">
                       <span>Tax (10%)</span>
-                      <span>${tax.toFixed(2)}</span>
+                      <span>{tax.toFixed(2)} MAD</span>
                     </div>
                   </div>
 
                   <div className="flex justify-between text-lg font-bold text-gray-900">
                     <span>Total</span>
-                    <span>${cartTotal.toFixed(2)}</span>
+                    <span>{cartTotal.toFixed(2)} MAD</span>
                   </div>
+
+                  {appliedCoupon && couponDiscount > 0 && (
+                    <p className="text-xs text-green-700 text-center mt-2 font-medium">
+                      You save {couponDiscount.toFixed(2)} MAD with {appliedCoupon.code}!
+                    </p>
+                  )}
 
                   {subtotal <= 50 && subtotal > 0 && (
                     <p className="text-xs text-gray-500 text-center mt-3">
-                      Free shipping on orders over $50!
+                      Free shipping on orders over 50 MAD!
                     </p>
                   )}
 
@@ -423,7 +501,10 @@ export default function CheckoutPage() {
                     </h3>
                     <div className="space-y-2 text-sm">
                       {cart.items.map((item) => (
-                        <div key={item.id} className="flex justify-between text-gray-600">
+                        <div
+                          key={item.id}
+                          className="flex justify-between text-gray-600"
+                        >
                           <span>Item #{item.id.substring(0, 8)}</span>
                           <span>Qty: {item.quantity}</span>
                         </div>

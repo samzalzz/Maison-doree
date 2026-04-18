@@ -1,9 +1,15 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
+import { PaginationControls } from '@/components/ui/PaginationControls'
+import { PageSizeSelect } from '@/components/ui/PageSizeSelect'
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 interface OrderItem {
   id: string
@@ -54,110 +60,112 @@ interface Order {
   updatedAt: string
 }
 
-interface PaginationInfo {
-  skip: number
-  take: number
-  total: number
-  hasMore: boolean
+interface CursorPagination {
+  limit: number
+  nextCursor: string | null
+  hasNextPage: boolean
 }
 
+// ---------------------------------------------------------------------------
+// Status badge config
+// ---------------------------------------------------------------------------
+
 const STATUS_BADGES: Record<string, { bg: string; text: string; label: string }> = {
-  PENDING: {
-    bg: 'bg-yellow-100',
-    text: 'text-yellow-800',
-    label: 'Pending',
-  },
-  CONFIRMED: {
-    bg: 'bg-blue-100',
-    text: 'text-blue-800',
-    label: 'Confirmed',
-  },
-  ASSIGNED: {
-    bg: 'bg-purple-100',
-    text: 'text-purple-800',
-    label: 'Assigned',
-  },
-  IN_PROGRESS: {
-    bg: 'bg-orange-100',
-    text: 'text-orange-800',
-    label: 'In Progress',
-  },
-  DELIVERED: {
-    bg: 'bg-green-100',
-    text: 'text-green-800',
-    label: 'Delivered',
-  },
-  CANCELLED: {
-    bg: 'bg-red-100',
-    text: 'text-red-800',
-    label: 'Cancelled',
-  },
+  PENDING: { bg: 'bg-yellow-100', text: 'text-yellow-800', label: 'Pending' },
+  CONFIRMED: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Confirmed' },
+  ASSIGNED: { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Assigned' },
+  IN_PROGRESS: { bg: 'bg-orange-100', text: 'text-orange-800', label: 'In Progress' },
+  DELIVERED: { bg: 'bg-green-100', text: 'text-green-800', label: 'Delivered' },
+  CANCELLED: { bg: 'bg-red-100', text: 'text-red-800', label: 'Cancelled' },
 }
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
 
 export default function OrdersPage() {
   const router = useRouter()
   const { data: session } = useSession()
+
   const [orders, setOrders] = useState<Order[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [selectedStatus, setSelectedStatus] = useState<string>('')
-  const [pagination, setPagination] = useState<PaginationInfo>({
-    skip: 0,
-    take: 10,
-    total: 0,
-    hasMore: false,
-  })
+  const [pageSize, setPageSize] = useState(10)
 
-  // Redirect to login if not authenticated
+  // Cursor stack — index 0 always = null (first page), index N = cursor for page N+1
+  const [cursorStack, setCursorStack] = useState<Array<string | null>>([null])
+  const [currentPageIndex, setCurrentPageIndex] = useState(0)
+  const [pagination, setPagination] = useState<CursorPagination | null>(null)
+
+  const currentCursor = cursorStack[currentPageIndex] ?? null
+  const currentPage = currentPageIndex + 1
+
+  // Redirect to login if unauthenticated
   useEffect(() => {
     if (session === null) {
       router.push('/login')
     }
   }, [session, router])
 
-  // Fetch orders
-  useEffect(() => {
-    const fetchOrders = async () => {
-      if (!session?.user) return
+  // Fetch the current page
+  const fetchOrders = useCallback(async () => {
+    if (!session?.user) return
 
-      setIsLoading(true)
-      try {
-        const params = new URLSearchParams({
-          skip: pagination.skip.toString(),
-          take: pagination.take.toString(),
-        })
+    setIsLoading(true)
+    try {
+      const params = new URLSearchParams({ limit: String(pageSize) })
+      if (currentCursor) params.set('cursor', currentCursor)
+      if (selectedStatus) params.set('status', selectedStatus)
 
-        if (selectedStatus) {
-          params.append('status', selectedStatus)
-        }
+      const res = await fetch(`/api/orders?${params.toString()}`)
+      const data = await res.json()
 
-        const response = await fetch(`/api/orders?${params.toString()}`)
-        const data = await response.json()
-
-        if (data.success) {
-          setOrders(data.data || [])
-          setPagination(data.pagination || {})
-        }
-      } catch (error) {
-        console.error('Failed to fetch orders:', error)
-        setOrders([])
-      } finally {
-        setIsLoading(false)
+      if (data.success) {
+        setOrders(data.data ?? [])
+        setPagination(data.pagination ?? null)
       }
+    } catch (err) {
+      console.error('Failed to fetch orders:', err)
+      setOrders([])
+    } finally {
+      setIsLoading(false)
     }
+  }, [session?.user, currentCursor, selectedStatus, pageSize])
 
+  useEffect(() => {
     fetchOrders()
-  }, [session?.user, selectedStatus, pagination.skip])
+  }, [fetchOrders])
 
-  const handleLoadMore = () => {
-    setPagination((prev) => ({
-      ...prev,
-      skip: prev.skip + prev.take,
-    }))
+  // When filters change, reset to first page
+  const prevFiltersKey = useRef<string | null>(null)
+  useEffect(() => {
+    const key = `${selectedStatus}|${pageSize}`
+    if (prevFiltersKey.current === null) {
+      prevFiltersKey.current = key
+      return
+    }
+    if (prevFiltersKey.current === key) return
+    prevFiltersKey.current = key
+
+    setCursorStack([null])
+    setCurrentPageIndex(0)
+    setPagination(null)
+  }, [selectedStatus, pageSize])
+
+  const handleNext = () => {
+    if (!pagination?.nextCursor) return
+    const nextIndex = currentPageIndex + 1
+    setCursorStack((prev) => {
+      const copy = [...prev]
+      copy[nextIndex] = pagination.nextCursor
+      return copy
+    })
+    setCurrentPageIndex(nextIndex)
   }
 
-  const handleStatusFilter = (status: string) => {
-    setSelectedStatus(status)
-    setPagination((prev) => ({ ...prev, skip: 0 }))
+  const handlePrevious = () => {
+    if (currentPageIndex === 0) return
+    setCurrentPageIndex((prev) => prev - 1)
   }
 
   if (!session) {
@@ -170,42 +178,52 @@ export default function OrdersPage() {
     )
   }
 
+  const hasPrevious = currentPageIndex > 0
+  const hasNext = pagination?.hasNextPage === true
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900">Order History</h1>
-          <p className="text-gray-600 mt-2">
-            View and track all your orders
-          </p>
+        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-4xl font-bold text-gray-900">Order History</h1>
+            <p className="text-gray-600 mt-2">View and track all your orders</p>
+          </div>
+          <PageSizeSelect
+            value={pageSize}
+            onChange={(size) => setPageSize(size)}
+            options={[5, 10, 20, 50]}
+          />
         </div>
 
         {/* Status Filter */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Filter by Status</h2>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Order status filter">
             <button
-              onClick={() => handleStatusFilter('')}
+              onClick={() => setSelectedStatus('')}
               className={`px-4 py-2 rounded-lg font-medium transition ${
                 selectedStatus === ''
                   ? 'bg-amber-600 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
+              aria-pressed={selectedStatus === ''}
             >
               All Orders
             </button>
-            {Object.entries(STATUS_BADGES).map(([status, { bg, text }]) => (
+            {Object.entries(STATUS_BADGES).map(([status, { bg, text, label }]) => (
               <button
                 key={status}
-                onClick={() => handleStatusFilter(status)}
+                onClick={() => setSelectedStatus(status)}
                 className={`px-4 py-2 rounded-lg font-medium transition ${
                   selectedStatus === status
                     ? `${bg} ${text} ring-2 ring-offset-2 ring-gray-400`
                     : `${bg} ${text} hover:opacity-80`
                 }`}
+                aria-pressed={selectedStatus === status}
               >
-                {STATUS_BADGES[status].label}
+                {label}
               </button>
             ))}
           </div>
@@ -218,9 +236,7 @@ export default function OrdersPage() {
           </div>
         ) : orders.length === 0 ? (
           <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">
-              No orders found
-            </h3>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No orders found</h3>
             <p className="text-gray-600 mb-6">
               {selectedStatus
                 ? 'No orders with this status yet.'
@@ -234,14 +250,15 @@ export default function OrdersPage() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-4" role="list" aria-label="Order list">
             {orders.map((order) => {
-              const badgeInfo = STATUS_BADGES[order.status] || STATUS_BADGES.PENDING
+              const badgeInfo = STATUS_BADGES[order.status] ?? STATUS_BADGES['PENDING']
               return (
                 <Link
                   key={order.id}
                   href={`/orders/${order.id}`}
                   className="block bg-white rounded-lg shadow-sm hover:shadow-md transition p-6"
+                  role="listitem"
                 >
                   <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                     {/* Left: Order Info */}
@@ -257,9 +274,7 @@ export default function OrdersPage() {
                         </span>
                       </div>
                       <p className="text-sm text-gray-600 mb-3">
-                        {order.items.length} item{order.items.length !== 1 ? 's' : ''}
-                        {' '}
-                        | {order.deliveryCity}
+                        {order.items.length} item{order.items.length !== 1 ? 's' : ''} | {order.deliveryCity}
                       </p>
                       <div className="text-sm text-gray-600">
                         <p>Ordered: {new Date(order.createdAt).toLocaleDateString()}</p>
@@ -272,27 +287,17 @@ export default function OrdersPage() {
                       </div>
                     </div>
 
-                    {/* Right: Amount & Arrow */}
+                    {/* Right: Amount */}
                     <div className="flex items-center gap-6">
                       <div className="text-right">
                         <p className="text-sm text-gray-600">Total</p>
                         <p className="text-2xl font-bold text-gray-900">
-                          ${order.totalPrice.toFixed(2)}
+                          {Number(order.totalPrice).toFixed(2)} MAD
                         </p>
                       </div>
-                      <div className="text-gray-400 hidden md:block">
-                        <svg
-                          className="w-6 h-6"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5l7 7-7 7"
-                          />
+                      <div className="text-gray-400 hidden md:block" aria-hidden="true">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                         </svg>
                       </div>
                     </div>
@@ -303,25 +308,24 @@ export default function OrdersPage() {
           </div>
         )}
 
-        {/* Pagination */}
-        {pagination.hasMore && (
-          <div className="mt-8 text-center">
-            <button
-              onClick={handleLoadMore}
-              disabled={isLoading}
-              className="bg-amber-600 text-white px-8 py-3 rounded-lg hover:bg-amber-700 transition disabled:opacity-50"
-            >
-              Load More Orders
-            </button>
+        {/* Pagination Controls */}
+        {(hasPrevious || hasNext) && (
+          <div className="mt-10">
+            <PaginationControls
+              hasPrevious={hasPrevious}
+              hasNext={hasNext}
+              onPrevious={handlePrevious}
+              onNext={handleNext}
+              currentPage={currentPage}
+            />
           </div>
         )}
 
-        {/* Info Footer */}
-        {pagination.total > 0 && (
-          <div className="mt-8 text-center text-sm text-gray-600">
-            Showing {Math.min(pagination.skip + pagination.take, pagination.total)} of{' '}
-            {pagination.total} orders
-          </div>
+        {/* Page info */}
+        {orders.length > 0 && (
+          <p className="mt-4 text-center text-sm text-gray-500" aria-live="polite">
+            Page {currentPage} — showing {orders.length} order{orders.length !== 1 ? 's' : ''}
+          </p>
         )}
       </div>
     </div>

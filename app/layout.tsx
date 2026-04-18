@@ -2,6 +2,8 @@ import React from 'react'
 import type { Metadata } from 'next'
 import './globals.css'
 import Providers from './providers'
+import { ToastProvider } from '@/lib/context/ToastContext'
+import { ToastContainer } from '@/components/ui/ToastContainer'
 
 export const metadata: Metadata = {
   title: 'Maison Dorée - Pâtisseries Maroc',
@@ -16,7 +18,12 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body>
-        <Providers>{children}</Providers>
+        <Providers>
+          <ToastProvider>
+            {children}
+            <ToastContainer />
+          </ToastProvider>
+        </Providers>
       </body>
     </html>
   )

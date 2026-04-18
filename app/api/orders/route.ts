@@ -289,12 +289,14 @@ export const POST = withAuth(async (req, { token }) => {
 // GET /api/orders  (any authenticated user)
 // ---------------------------------------------------------------------------
 // Returns all orders for the authenticated user, with items, payment, and
-// delivery included.  Supports optional status filter and pagination.
+// delivery included.  Supports optional status filter and cursor pagination.
 //
 // Query params:
 //   status   – filter by OrderStatus enum value (optional)
-//   skip     – pagination offset (default 0)
-//   take     – page size     (default 20, max 100)
+//   cursor   – opaque pagination cursor (base64-encoded id); absent = first page
+//   limit    – page size (default 10, max 100)
+//   skip     – legacy offset (still supported when cursor absent)
+//   take     – legacy page size (still supported when cursor absent)
 // ---------------------------------------------------------------------------
 
 export const GET = withAuth(async (req, { token }) => {
@@ -302,11 +304,16 @@ export const GET = withAuth(async (req, { token }) => {
     const { searchParams } = new URL(req.url)
 
     const rawStatus = searchParams.get('status')
-    const skip = Math.max(0, parseInt(searchParams.get('skip') ?? '0', 10) || 0)
-    const take = Math.min(
+    const rawCursor = searchParams.get('cursor')
+    const limit = Math.min(
       100,
-      Math.max(1, parseInt(searchParams.get('take') ?? '20', 10) || 20),
+      Math.max(1, parseInt(searchParams.get('limit') ?? '10', 10) || 10),
     )
+
+    // Legacy params
+    const legacySkip = searchParams.get('skip')
+    const legacyTake = searchParams.get('take')
+    const useLegacy = (legacySkip !== null || legacyTake !== null) && rawCursor === null
 
     const validStatuses = [
       'PENDING',
@@ -327,41 +334,94 @@ export const GET = withAuth(async (req, { token }) => {
     const where: Prisma.OrderWhereInput = { userId: token.id }
     if (status) where.status = status
 
-    const [orders, total] = await Promise.all([
-      prisma.order.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          items: {
-            include: {
-              product: {
-                select: {
-                  id:       true,
-                  name:     true,
-                  price:    true,
-                  category: true,
-                  photos:   true,
-                },
+    // -----------------------------------------------------------------------
+    // Legacy offset path (backwards compat)
+    // -----------------------------------------------------------------------
+    if (useLegacy) {
+      const skip = Math.max(0, parseInt(legacySkip ?? '0', 10) || 0)
+      const take = Math.min(100, Math.max(1, parseInt(legacyTake ?? '10', 10) || 10))
+
+      const [orders, total] = await Promise.all([
+        prisma.order.findMany({
+          where,
+          skip,
+          take,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            items: {
+              include: {
+                product: { select: { id: true, name: true, price: true, category: true, photos: true } },
+              },
+            },
+            payment: true,
+            delivery: true,
+          },
+        }),
+        prisma.order.count({ where }),
+      ])
+
+      return NextResponse.json({
+        success: true,
+        data: orders,
+        pagination: { skip, take, total, hasMore: skip + take < total },
+      })
+    }
+
+    // -----------------------------------------------------------------------
+    // Cursor-based path
+    // -----------------------------------------------------------------------
+    let cursorId: string | undefined
+    if (rawCursor) {
+      try {
+        cursorId = Buffer.from(rawCursor, 'base64url').toString('utf8')
+      } catch {
+        return NextResponse.json(
+          { success: false, error: { code: 'BAD_REQUEST', message: 'Invalid cursor.' } },
+          { status: 400 },
+        )
+      }
+    }
+
+    const orders = await prisma.order.findMany({
+      where,
+      take: limit + 1,
+      ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' },
+      include: {
+        items: {
+          include: {
+            product: {
+              select: {
+                id:       true,
+                name:     true,
+                price:    true,
+                category: true,
+                photos:   true,
               },
             },
           },
-          payment:  true,
-          delivery: true,
         },
-      }),
-      prisma.order.count({ where }),
-    ])
+        payment:  true,
+        delivery: true,
+      },
+    })
+
+    const hasNextPage = orders.length > limit
+    const page = hasNextPage ? orders.slice(0, limit) : orders
+    const lastItem = page[page.length - 1]
+    const nextCursor =
+      hasNextPage && lastItem
+        ? Buffer.from(lastItem.id).toString('base64url')
+        : null
 
     return NextResponse.json({
       success: true,
-      data: orders,
+      data: page,
+      nextCursor,
       pagination: {
-        skip,
-        take,
-        total,
-        hasMore: skip + take < total,
+        limit,
+        nextCursor,
+        hasNextPage,
       },
     })
   } catch (error) {
