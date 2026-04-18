@@ -14,6 +14,8 @@ export default function AdminNav() {
     { label: 'Dashboard', href: '/admin/dashboard', icon: '📊' },
     { label: 'Products', href: '/admin/products', icon: '📦' },
     { label: 'Stock', href: '/admin/stocks', icon: '📈' },
+    { label: 'Production', href: '/admin/production/dashboard', icon: '🏭' },
+    { label: 'Forecasting', href: '/admin/production/forecast', icon: '📅' },
   ]
 
   return (

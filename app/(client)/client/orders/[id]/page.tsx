@@ -261,7 +261,6 @@ export default function OrderDetailPage() {
 
   const statusColor = STATUS_COLORS[order.status] || STATUS_COLORS.PENDING
   const isDelivered = order.status === 'DELIVERED'
-  const hasDelivery = order.delivery && order.status !== 'CANCELLED'
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -409,7 +408,7 @@ export default function OrderDetailPage() {
             </div>
 
             {/* Delivery Info */}
-            {hasDelivery && (
+            {order.delivery && (
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">
                   Delivery Details
