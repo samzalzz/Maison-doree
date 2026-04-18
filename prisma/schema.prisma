@@ -500,6 +500,7 @@ model RawMaterial {
   labStocks            LabStock[]
   transferSuggestions  TransferSuggestion[]
   purchaseOrders       PurchaseOrder[]
+  qualityInspections   QualityInspection[]
 
   @@unique([name, type])
   @@index([isIntermediate])
@@ -541,7 +542,8 @@ model ProductionBatch {
   createdBy               String
 
   // Relations
-  items BatchItem[]
+  items              BatchItem[]
+  qualityInspections QualityInspection[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -632,7 +634,8 @@ model Supplier {
   leadTimeDays Int
   categories   String[] // e.g. ["Flour", "Sugar", "Chocolate"]
 
-  purchaseOrders PurchaseOrder[]
+  purchaseOrders     PurchaseOrder[]
+  qualityInspections QualityInspection[]
 
   createdAt DateTime @default(now())
 
@@ -834,6 +837,74 @@ model ContactSubmission {
 
   @@index([status])
   @@index([createdAt])
+}
+
+// ============================================================================
+// PHASE 1 SAP: QUALITY MANAGEMENT (QM)
+// ============================================================================
+
+enum InspectionType {
+  INCOMING
+  IN_PROCESS
+  FINAL
+}
+
+enum InspectionStatus {
+  PLANNED
+  IN_PROGRESS
+  PASSED
+  FAILED
+  CONDITIONAL
+}
+
+// QM-1. QualityInspection — an inspection event at any production stage
+model QualityInspection {
+  id             String           @id @default(cuid())
+  inspectionType InspectionType
+  status         InspectionStatus @default(PLANNED)
+
+  // Optional links — each set to null if the linked record is deleted
+  rawMaterialId     String?
+  rawMaterial       RawMaterial?     @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
+
+  productionBatchId String?
+  productionBatch   ProductionBatch? @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  inspectedBy   String    // admin user ID (no FK — User model is out of scope for QM)
+  scheduledDate DateTime
+  actualDate    DateTime?
+  notes         String?
+
+  // Relations
+  checkpoints InspectionCheckpoint[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([inspectionType])
+  @@index([status])
+  @@index([rawMaterialId])
+  @@index([productionBatchId])
+  @@index([supplierId])
+  @@index([scheduledDate])
+}
+
+// QM-2. InspectionCheckpoint — individual check within a QualityInspection
+model InspectionCheckpoint {
+  id           String            @id @default(cuid())
+  inspectionId String
+  inspection   QualityInspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  checkName     String
+  expectedValue String?
+  actualValue   String?
+  passed        Boolean
+  notes         String?
+
+  @@index([inspectionId])
 }
 
 // ---------------------------------------------------------------------------
