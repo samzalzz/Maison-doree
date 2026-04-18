@@ -99,16 +99,16 @@ model User {
   updatedAt    DateTime @updatedAt
 
   // Relations
-  profile                 UserProfile?
-  orders                  Order[]
-  loyaltyCard             LoyaltyCard?
-  ratings                 Rating[]
-  tickets                 Ticket[]
-  ticketMessages          TicketMessage[]
-  deliveries              Delivery[]               @relation("driver")
-  notifications           Notification[]
-  notificationPreference  NotificationPreference?
-  couponUsages            CouponUsage[]            @relation("CouponUsages")
+  profile                UserProfile?
+  orders                 Order[]
+  loyaltyCard            LoyaltyCard?
+  ratings                Rating[]
+  tickets                Ticket[]
+  ticketMessages         TicketMessage[]
+  deliveries             Delivery[]              @relation("driver")
+  notifications          Notification[]
+  notificationPreference NotificationPreference?
+  couponUsages           CouponUsage[]           @relation("CouponUsages")
 
   @@index([email])
   @@index([role])
@@ -391,12 +391,12 @@ model ProductionLab {
   capacity Int
 
   // Relations
-  employees            LabEmployee[]
-  machines             Machine[]
-  stock                LabStock[]
-  batches              ProductionBatch[]
-  outboundSuggestions  TransferSuggestion[] @relation("SourceTransfers")
-  inboundSuggestions   TransferSuggestion[] @relation("DestTransfers")
+  employees           LabEmployee[]
+  machines            Machine[]
+  stock               LabStock[]
+  batches             ProductionBatch[]
+  outboundSuggestions TransferSuggestion[] @relation("SourceTransfers")
+  inboundSuggestions  TransferSuggestion[] @relation("DestTransfers")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -462,7 +462,7 @@ model RecipeWorkflow {
   recipeId String @unique
   recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
-  steps String  // JSON array of WorkflowStep objects
+  steps String // JSON array of WorkflowStep objects
   labId String? // which lab to execute in (optional snapshot)
 
   createdAt DateTime @default(now())
@@ -497,16 +497,16 @@ model RawMaterial {
   productionRecipe   Recipe? @relation(fields: [productionRecipeId], references: [id], onDelete: SetNull)
 
   // Relations
-  usedInRecipes           RecipeIngredient[]        @relation("RawMaterialIngredients")
-  usedAsIntermediateIn    RecipeIngredient[]        @relation("IntermediateIngredients")
-  labStocks               LabStock[]
-  transferSuggestions     TransferSuggestion[]
-  purchaseOrders          PurchaseOrder[]
-  qualityInspections      QualityInspection[]
-  recipeVersionIngredients    RecipeVersionIngredient[] @relation("RawMaterialVersion")
-  recipeVersionIntermediates  RecipeVersionIngredient[] @relation("IntermediateVersionUsage")
-  mrpSuggestions          MRPSuggestion[]
-  materialAllocations     MaterialAllocation[]
+  usedInRecipes              RecipeIngredient[]        @relation("RawMaterialIngredients")
+  usedAsIntermediateIn       RecipeIngredient[]        @relation("IntermediateIngredients")
+  labStocks                  LabStock[]
+  transferSuggestions        TransferSuggestion[]
+  purchaseOrders             PurchaseOrder[]
+  qualityInspections         QualityInspection[]
+  recipeVersionIngredients   RecipeVersionIngredient[] @relation("RawMaterialVersion")
+  recipeVersionIntermediates RecipeVersionIngredient[] @relation("IntermediateVersionUsage")
+  mrpSuggestions             MRPSuggestion[]
+  materialAllocations        MaterialAllocation[]
 
   @@unique([name, type])
   @@index([isIntermediate])
@@ -548,10 +548,10 @@ model ProductionBatch {
   createdBy               String
 
   // Relations
-  items                BatchItem[]
-  qualityInspections   QualityInspection[]
-  materialAllocations  MaterialAllocation[]
-  traceabilityRecords  TraceabilityRecord[]
+  items               BatchItem[]
+  qualityInspections  QualityInspection[]
+  materialAllocations MaterialAllocation[]
+  traceabilityRecords TraceabilityRecord[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -572,7 +572,7 @@ model DailyForecast {
   recipe   Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   predictedQuantity Int
-  confidence        Int     // 0-100 percentage confidence in prediction
+  confidence        Int // 0-100 percentage confidence in prediction
   reasoning         String?
 
   // Rollup metrics (for display)
@@ -620,8 +620,8 @@ model TransferSuggestion {
   suggestedQuantity Decimal @db.Decimal(10, 2)
   reasoning         String
 
-  status      String    // "pending" | "executed" | "dismissed"
-  executedAt  DateTime?
+  status     String // "pending" | "executed" | "dismissed"
+  executedAt DateTime?
 
   createdAt DateTime @default(now())
   expiresAt DateTime
@@ -653,18 +653,18 @@ model Supplier {
 
 // P4-3. PurchaseOrder — an order placed with a supplier for a raw material
 model PurchaseOrder {
-  id       String   @id @default(cuid())
-  poNumber String   @unique
-  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  id         String   @id @default(cuid())
+  poNumber   String   @unique
+  supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   supplierId String
 
   material   RawMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
   materialId String
 
-  quantity     Decimal   @db.Decimal(10, 2)
+  quantity     Decimal  @db.Decimal(10, 2)
   deliveryDate DateTime
-  status       String    // "pending" | "ordered" | "delivered" | "cancelled"
-  cost         Decimal?  @db.Decimal(12, 2)
+  status       String // "pending" | "ordered" | "delivered" | "cancelled"
+  cost         Decimal? @db.Decimal(12, 2)
 
   createdAt   DateTime  @default(now())
   deliveredAt DateTime?
@@ -792,10 +792,10 @@ model PromoCoupon {
   usedCount          Int  @default(0)
   maxUsesPerCustomer Int  @default(1)
 
-  minOrderAmount        Decimal?  @db.Decimal(10, 2)
-  applicableCategories  String[]  @default([]) // [] = all categories
+  minOrderAmount       Decimal? @db.Decimal(10, 2)
+  applicableCategories String[] @default([]) // [] = all categories
 
-  validFrom DateTime
+  validFrom  DateTime
   validUntil DateTime
   isActive   Boolean  @default(true)
 
@@ -873,8 +873,8 @@ model QualityInspection {
   status         InspectionStatus @default(PLANNED)
 
   // Optional links — each set to null if the linked record is deleted
-  rawMaterialId     String?
-  rawMaterial       RawMaterial?     @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
+  rawMaterialId String?
+  rawMaterial   RawMaterial? @relation(fields: [rawMaterialId], references: [id], onDelete: SetNull)
 
   productionBatchId String?
   productionBatch   ProductionBatch? @relation(fields: [productionBatchId], references: [id], onDelete: SetNull)
@@ -882,7 +882,7 @@ model QualityInspection {
   supplierId String?
   supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
-  inspectedBy   String    // admin user ID (no FK — User model is out of scope for QM)
+  inspectedBy   String // admin user ID (no FK — User model is out of scope for QM)
   scheduledDate DateTime
   actualDate    DateTime?
   notes         String?
@@ -945,10 +945,10 @@ enum WorkflowConditionOperator {
 
 // 23. Workflow — a named automation rule with trigger and ordered steps
 model Workflow {
-  id          String              @id @default(cuid())
+  id          String  @id @default(cuid())
   name        String
   description String?
-  enabled     Boolean             @default(true)
+  enabled     Boolean @default(true)
 
   triggerType   WorkflowTriggerType
   triggerConfig Json
@@ -1019,7 +1019,7 @@ model WorkflowExecution {
   workflowId String
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  status       String  // "pending" | "running" | "completed" | "failed"
+  status       String // "pending" | "running" | "completed" | "failed"
   errorMessage String?
 
   triggerData Json
@@ -1039,9 +1039,9 @@ model WorkflowExecution {
 
 // RD-1. RecipeVersion — a versioned snapshot of a recipe with cost tracking
 model RecipeVersion {
-  id            String   @id @default(cuid())
-  recipeId      String
-  recipe        Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  recipeId String
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   versionNumber Int
   versionName   String?
@@ -1078,11 +1078,11 @@ model RecipeVersionIngredient {
   recipeVersionId String
   recipeVersion   RecipeVersion @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
 
-  rawMaterialId  String?
-  rawMaterial    RawMaterial? @relation("RawMaterialVersion", fields: [rawMaterialId], references: [id], onDelete: SetNull)
+  rawMaterialId String?
+  rawMaterial   RawMaterial? @relation("RawMaterialVersion", fields: [rawMaterialId], references: [id], onDelete: SetNull)
 
-  intermediateId   String?
-  intermediate     RawMaterial? @relation("IntermediateVersionUsage", fields: [intermediateId], references: [id], onDelete: SetNull)
+  intermediateId String?
+  intermediate   RawMaterial? @relation("IntermediateVersionUsage", fields: [intermediateId], references: [id], onDelete: SetNull)
 
   quantity    Decimal  @db.Decimal(10, 2)
   unit        String
@@ -1099,12 +1099,12 @@ model RecipeVersionHistory {
   recipeVersionId String
   recipeVersion   RecipeVersion @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
 
-  changeType String  // e.g. "INGREDIENT_ADDED" | "COST_UPDATED" | "STATUS_CHANGED"
+  changeType String // e.g. "INGREDIENT_ADDED" | "COST_UPDATED" | "STATUS_CHANGED"
   fieldName  String?
   oldValue   String?
   newValue   String?
 
-  changedBy  String   // admin user ID
+  changedBy  String // admin user ID
   changeDate DateTime @default(now())
   reason     String?
 
@@ -1124,15 +1124,15 @@ model EnhancedForecast {
   recipe   Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   predictedQuantity Int
-  confidenceLevel   Int     // 0-100
+  confidenceLevel   Int // 0-100
 
   sevenDayAvg      Decimal? @db.Decimal(10, 2)
   thirtyDayAvg     Decimal? @db.Decimal(10, 2)
   seasonalFactor   Decimal? @db.Decimal(10, 4)
   dayOfWeekPattern Decimal? @db.Decimal(10, 4)
 
-  mlPrediction  Int?
-  mlConfidence  Int?
+  mlPrediction Int?
+  mlConfidence Int?
 
   // SIMPLE_AVERAGE | SEASONAL | HYBRID_RULES_ML
   algorithm String
@@ -1155,16 +1155,16 @@ model MRPSuggestion {
   supplierId String?
   supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
 
-  currentStock    Decimal @db.Decimal(10, 2)
-  minThreshold    Decimal @db.Decimal(10, 2)
-  maxCapacity     Decimal? @db.Decimal(10, 2)
-  projectedUsage  Decimal @db.Decimal(10, 2)
-  projectedDate   DateTime
-  recommendedQty  Decimal @db.Decimal(10, 2)
+  currentStock   Decimal  @db.Decimal(10, 2)
+  minThreshold   Decimal  @db.Decimal(10, 2)
+  maxCapacity    Decimal? @db.Decimal(10, 2)
+  projectedUsage Decimal  @db.Decimal(10, 2)
+  projectedDate  DateTime
+  recommendedQty Decimal  @db.Decimal(10, 2)
 
   // PENDING | ORDERED | COMPLETED | DISMISSED
-  status        String
-  createdAt     DateTime  @default(now())
+  status        MRPSuggestionStatus
+  createdAt     DateTime            @default(now())
   dismissedAt   DateTime?
   dismissReason String?
 
@@ -1196,12 +1196,27 @@ model TraceabilityRecord {
   batch   ProductionBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
 
   // MATERIAL_ALLOCATED | PRODUCTION_STARTED | PRODUCTION_COMPLETED | SHIPPED | RECALL
-  event      String
+  event      TraceabilityEventType
   details    String
   location   String?
-  timestamp  DateTime @default(now())
-  recordedBy String   // admin user ID
+  timestamp  DateTime              @default(now())
+  recordedBy String // admin user ID
 
   @@index([batchId])
   @@index([timestamp])
+}
+
+enum MRPSuggestionStatus {
+  PENDING
+  ORDERED
+  COMPLETED
+  DISMISSED
+}
+
+enum TraceabilityEventType {
+  MATERIAL_ALLOCATED
+  PRODUCTION_STARTED
+  PRODUCTION_COMPLETED
+  SHIPPED
+  RECALL
 }
