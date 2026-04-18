@@ -658,7 +658,7 @@ export async function getIngredients(
 ): Promise<RecipeVersionIngredient[]> {
   const ingredients = await prisma.recipeVersionIngredient.findMany({
     where: { recipeVersionId: versionId },
-    orderBy: { recipeVersionId: 'asc' },
+    orderBy: { id: 'asc' },
   })
 
   return ingredients
