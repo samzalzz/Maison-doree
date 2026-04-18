@@ -65,6 +65,38 @@ export const ProductUpdateSchema = ProductSchema.partial()
 
 export type ProductUpdateInput = z.infer<typeof ProductUpdateSchema>
 
+/**
+ * Admin-facing create schema — mirrors ProductSchema with the name and
+ * constraints specified in the admin API contract.
+ * Exported as CreateProductSchema for use in /api/admin/products routes.
+ */
+export const CreateProductSchema = z.object({
+  name: z.string().min(1, 'Product name is required').max(100),
+  description: z.string().max(1000).optional(),
+  price: z.number().positive('Price must be positive'),
+  category: z.enum([
+    'PATES',
+    'COOKIES',
+    'GATEAU',
+    'BRIOUATES',
+    'CHEBAKIA',
+    'AUTRES',
+  ]),
+  stock: z.number().int().min(0, 'Stock cannot be negative').default(0),
+  minimumStock: z.number().int().min(0).default(10),
+  isFeatured: z.boolean().default(false),
+  photos: z.array(z.string()).optional(),
+})
+
+export type CreateProductInput = z.infer<typeof CreateProductSchema>
+
+/**
+ * Admin-facing update schema — all fields from CreateProductSchema are optional.
+ */
+export const UpdateProductSchema = CreateProductSchema.partial()
+
+export type UpdateProductInput = z.infer<typeof UpdateProductSchema>
+
 // ============================================================================
 // PACKAGING SCHEMAS
 // ============================================================================
