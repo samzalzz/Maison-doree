@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { useToast } from '@/lib/hooks/useToast'
+import { LoadMoreButton } from '@/components/ui/LoadMoreButton'
 import {
   Plus,
   Search,
@@ -973,18 +974,12 @@ export default function AdminCouponsPage() {
 
         {/* Load more */}
         {hasNextPage && (
-          <div className="px-4 py-3 border-t border-gray-200 text-center">
-            <button
+          <div className="px-4 py-4 border-t border-gray-200">
+            <LoadMoreButton
               onClick={() => fetchCoupons(false)}
-              disabled={isLoading}
-              className="text-sm text-amber-600 font-medium hover:text-amber-700 disabled:opacity-50"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin inline" />
-              ) : (
-                'Load more'
-              )}
-            </button>
+              isLoading={isLoading}
+              label="Load More Coupons"
+            />
           </div>
         )}
       </div>

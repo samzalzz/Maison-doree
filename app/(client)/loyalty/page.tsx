@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { TierBadge } from '@/components/loyalty/TierBadge'
 import { TierProgressBar } from '@/components/loyalty/TierProgressBar'
 import { PointsRedeemModal } from '@/components/loyalty/PointsRedeemModal'
+import { PaginationControls } from '@/components/ui/PaginationControls'
 import { useToast } from '@/lib/hooks/useToast'
 
 // ---------------------------------------------------------------------------
@@ -80,11 +81,17 @@ export default function LoyaltyPage() {
   const [loyaltyData, setLoyaltyData] = useState<LoyaltyData | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [totalTransactions, setTotalTransactions] = useState(0)
-  const [currentPage, setCurrentPage] = useState(0) // 0-based offset
   const [benefits, setBenefits] = useState<TierBenefitData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingTx, setIsLoadingTx] = useState(false)
   const [isRedeemOpen, setIsRedeemOpen] = useState(false)
+
+  // Cursor-based pagination state for transactions
+  // cursorStack[0] = null (first page), cursorStack[N] = cursor for page N+1
+  const [cursorStack, setCursorStack] = useState<Array<string | null>>([null])
+  const [txPageIndex, setTxPageIndex] = useState(0)
+  const [txHasNextPage, setTxHasNextPage] = useState(false)
+  const txCursorStackRef = useRef(cursorStack)
 
   // Fetch loyalty card data
   const fetchLoyalty = useCallback(async () => {
@@ -101,18 +108,28 @@ export default function LoyaltyPage() {
     }
   }, [toastError])
 
-  // Fetch transactions (paginated)
+  // Fetch transactions (cursor-paginated)
   const fetchTransactions = useCallback(
-    async (offset: number) => {
+    async (cursor: string | null) => {
       setIsLoadingTx(true)
       try {
-        const res = await fetch(
-          `/api/loyalty/transactions?limit=${PAGE_SIZE}&offset=${offset}`,
-        )
+        const params = new URLSearchParams({ limit: String(PAGE_SIZE) })
+        if (cursor) params.set('cursor', cursor)
+        const res = await fetch(`/api/loyalty/transactions?${params.toString()}`)
         const data = await res.json()
         if (!res.ok || !data.success) throw new Error(data.error?.message)
         setTransactions(data.data.transactions)
         setTotalTransactions(data.data.total)
+        setTxHasNextPage(data.data.hasNextPage ?? false)
+
+        // Store next cursor in the stack for forward navigation
+        if (data.data.nextCursor) {
+          setCursorStack((prev) => {
+            const copy = [...prev]
+            copy[txPageIndex + 1] = data.data.nextCursor
+            return copy
+          })
+        }
       } catch (err) {
         toastError({
           title: 'Error',
@@ -122,7 +139,7 @@ export default function LoyaltyPage() {
         setIsLoadingTx(false)
       }
     },
-    [toastError],
+    [toastError, txPageIndex],
   )
 
   // Fetch tier benefits
@@ -139,15 +156,29 @@ export default function LoyaltyPage() {
   useEffect(() => {
     const init = async () => {
       setIsLoading(true)
-      await Promise.all([fetchLoyalty(), fetchTransactions(0), fetchBenefits()])
+      await Promise.all([fetchLoyalty(), fetchTransactions(null), fetchBenefits()])
       setIsLoading(false)
     }
     init()
   }, [fetchLoyalty, fetchTransactions, fetchBenefits])
 
-  const handlePageChange = (newPage: number) => {
-    setCurrentPage(newPage)
-    fetchTransactions(newPage * PAGE_SIZE)
+  // Keep ref in sync so pagination handlers can read latest stack
+  useEffect(() => {
+    txCursorStackRef.current = cursorStack
+  }, [cursorStack])
+
+  const handleTxNext = () => {
+    if (!txHasNextPage) return
+    const nextIndex = txPageIndex + 1
+    setTxPageIndex(nextIndex)
+    fetchTransactions(txCursorStackRef.current[nextIndex] ?? null)
+  }
+
+  const handleTxPrevious = () => {
+    if (txPageIndex === 0) return
+    const prevIndex = txPageIndex - 1
+    setTxPageIndex(prevIndex)
+    fetchTransactions(txCursorStackRef.current[prevIndex] ?? null)
   }
 
   const handleRedeemSuccess = (pointsRedeemed: number, discountAmount: number) => {
@@ -155,12 +186,15 @@ export default function LoyaltyPage() {
       title: 'Redeemed!',
       message: `${pointsRedeemed} pts for ${discountAmount.toFixed(2)} MAD discount`,
     })
-    // Refresh loyalty card after redemption
     fetchLoyalty()
-    fetchTransactions(currentPage * PAGE_SIZE)
+    // Reset transaction pagination to first page after redemption
+    setCursorStack([null])
+    setTxPageIndex(0)
+    fetchTransactions(null)
   }
 
   const totalPages = Math.ceil(totalTransactions / PAGE_SIZE)
+  const txCurrentPage = txPageIndex + 1
 
   if (isLoading) {
     return (
@@ -378,26 +412,16 @@ export default function LoyaltyPage() {
               </div>
 
               {/* Pagination */}
-              {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-5">
-                  <button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 0}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-sm text-gray-500">
-                    Page {currentPage + 1} of {totalPages}
-                  </span>
-                  <button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage + 1 >= totalPages}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
-                  >
-                    Next
-                  </button>
-                </div>
+              {(txPageIndex > 0 || txHasNextPage) && (
+                <PaginationControls
+                  hasPrevious={txPageIndex > 0}
+                  hasNext={txHasNextPage}
+                  onPrevious={handleTxPrevious}
+                  onNext={handleTxNext}
+                  currentPage={txCurrentPage}
+                  totalPages={totalPages > 1 ? totalPages : undefined}
+                  className="mt-5"
+                />
               )}
             </>
           )}

@@ -14,10 +14,23 @@ const PRODUCTS_CACHE_TTL = 60 // seconds
 function buildCacheKey(
   category: string | null,
   featured: boolean,
-  skip: number,
-  take: number,
+  cursor: string | null,
+  limit: number,
 ): string {
-  return `products:list:cat=${category ?? 'all'}:featured=${featured}:skip=${skip}:take=${take}`
+  return `products:list:cat=${category ?? 'all'}:featured=${featured}:cursor=${cursor ?? 'null'}:limit=${limit}`
+}
+
+// ---------------------------------------------------------------------------
+// Cursor codec helpers
+// ---------------------------------------------------------------------------
+// The cursor is the base64-encoded product id — opaque to the client.
+
+function encodeCursor(id: string): string {
+  return Buffer.from(id).toString('base64url')
+}
+
+function decodeCursor(cursor: string): string {
+  return Buffer.from(cursor, 'base64url').toString('utf8')
 }
 
 // ---------------------------------------------------------------------------
@@ -26,8 +39,10 @@ function buildCacheKey(
 // Query params:
 //   category  – filter by ProductCategory enum value
 //   featured  – "true" to return only featured products
-//   skip      – pagination offset (default 0)
-//   take      – page size (default 20, max 100)
+//   cursor    – opaque pagination cursor (base64-encoded id); absent = first page
+//   limit     – page size (default 20, max 100)
+//   skip      – legacy offset param (still supported for backwards compat)
+//   take      – legacy page-size param (still supported for backwards compat)
 // ---------------------------------------------------------------------------
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -37,11 +52,18 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // Parse and sanitise query parameters
     const rawCategory = searchParams.get('category')
     const featured = searchParams.get('featured') === 'true'
-    const skip = Math.max(0, parseInt(searchParams.get('skip') ?? '0', 10) || 0)
-    const take = Math.min(
+
+    // Cursor-based pagination params (preferred)
+    const rawCursor = searchParams.get('cursor')
+    const limit = Math.min(
       100,
-      Math.max(1, parseInt(searchParams.get('take') ?? '20', 10) || 20),
+      Math.max(1, parseInt(searchParams.get('limit') ?? '20', 10) || 20),
     )
+
+    // Legacy offset params (backwards compat)
+    const legacySkip = searchParams.get('skip')
+    const legacyTake = searchParams.get('take')
+    const useLegacy = (legacySkip !== null || legacyTake !== null) && rawCursor === null
 
     // Validate category against the enum when provided
     const validCategories: ProductCategory[] = [
@@ -57,16 +79,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         ? (rawCategory as ProductCategory)
         : null
 
-    // Try cache first
-    const cacheKey = buildCacheKey(category, featured, skip, take)
-    const cached = await cache.get(cacheKey).catch(() => null)
-
-    if (cached) {
-      return NextResponse.json(JSON.parse(cached), {
-        headers: { 'X-Cache': 'HIT' },
-      })
-    }
-
     // Build Prisma where clause
     const where: {
       category?: ProductCategory
@@ -76,24 +88,80 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     if (category) where.category = category
     if (featured) where.isFeatured = true
 
-    // Execute count + fetch in parallel
-    const [products, total] = await Promise.all([
-      prisma.product.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-      }),
-      prisma.product.count({ where }),
-    ])
+    // -----------------------------------------------------------------------
+    // Legacy offset-based path (skip/take params present and no cursor)
+    // -----------------------------------------------------------------------
+    if (useLegacy) {
+      const skip = Math.max(0, parseInt(legacySkip ?? '0', 10) || 0)
+      const take = Math.min(100, Math.max(1, parseInt(legacyTake ?? '20', 10) || 20))
+
+      const cacheKey = buildCacheKey(category, featured, `skip-${skip}`, take)
+      const cached = await cache.get(cacheKey).catch(() => null)
+
+      if (cached) {
+        return NextResponse.json(JSON.parse(cached), { headers: { 'X-Cache': 'HIT' } })
+      }
+
+      const [products, total] = await Promise.all([
+        prisma.product.findMany({ where, skip, take, orderBy: { createdAt: 'desc' } }),
+        prisma.product.count({ where }),
+      ])
+
+      const payload = {
+        data: products,
+        pagination: { skip, take, total, hasMore: skip + take < total },
+      }
+
+      cache.set(cacheKey, JSON.stringify(payload), PRODUCTS_CACHE_TTL).catch(() => {})
+
+      return NextResponse.json(payload, { headers: { 'X-Cache': 'MISS' } })
+    }
+
+    // -----------------------------------------------------------------------
+    // Cursor-based path
+    // -----------------------------------------------------------------------
+
+    // Decode the opaque cursor to a product id
+    let cursorId: string | undefined
+    if (rawCursor) {
+      try {
+        cursorId = decodeCursor(rawCursor)
+      } catch {
+        return NextResponse.json(
+          { success: false, error: { code: 'BAD_REQUEST', message: 'Invalid cursor.' } },
+          { status: 400 },
+        )
+      }
+    }
+
+    // Try cache first
+    const cacheKey = buildCacheKey(category, featured, rawCursor, limit)
+    const cached = await cache.get(cacheKey).catch(() => null)
+
+    if (cached) {
+      return NextResponse.json(JSON.parse(cached), { headers: { 'X-Cache': 'HIT' } })
+    }
+
+    // Fetch limit + 1 to determine if there is a next page
+    const products = await prisma.product.findMany({
+      where,
+      take: limit + 1,
+      ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+      orderBy: { createdAt: 'desc' },
+    })
+
+    const hasNextPage = products.length > limit
+    const page = hasNextPage ? products.slice(0, limit) : products
+    const lastItem = page[page.length - 1]
+    const nextCursor = hasNextPage && lastItem ? encodeCursor(lastItem.id) : null
 
     const payload = {
-      data: products,
+      data: page,
+      nextCursor,
       pagination: {
-        skip,
-        take,
-        total,
-        hasMore: skip + take < total,
+        limit,
+        nextCursor,
+        hasNextPage,
       },
     }
 
@@ -104,9 +172,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         // Redis unavailable — degrade gracefully, do not throw
       })
 
-    return NextResponse.json(payload, {
-      headers: { 'X-Cache': 'MISS' },
-    })
+    return NextResponse.json(payload, { headers: { 'X-Cache': 'MISS' } })
   } catch (error) {
     console.error('[GET /api/products] Error:', error)
     return NextResponse.json(
@@ -191,14 +257,12 @@ export const POST = withAdminAuth(async (req) => {
       return created
     })
 
-    // Invalidate all product-list cache keys pattern by a best-effort flush
-    // (ioredis does not support keyspace notifications without config, so we
-    // flush only the most common first-page keys to keep things simple)
+    // Invalidate first-page cache keys (cursor=null means first page)
     const commonKeys = [
-      buildCacheKey(null, false, 0, 20),
-      buildCacheKey(null, true, 0, 20),
-      buildCacheKey(product.category, false, 0, 20),
-      buildCacheKey(product.category, true, 0, 20),
+      buildCacheKey(null, false, null, 20),
+      buildCacheKey(null, true, null, 20),
+      buildCacheKey(product.category, false, null, 20),
+      buildCacheKey(product.category, true, null, 20),
     ]
     await Promise.allSettled(commonKeys.map((k) => cache.del(k)))
 
