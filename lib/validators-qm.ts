@@ -97,7 +97,7 @@ export const QualityInspectionFiltersSchema = z.object({
     .default(0),
 })
 
-export type QualityInspectionFilters = z.infer<typeof QualityInspectionFiltersSchema>
+export type QualityInspectionFiltersInput = z.infer<typeof QualityInspectionFiltersSchema>
 
 // ============================================================================
 // INSPECTION CHECKPOINT SCHEMAS
