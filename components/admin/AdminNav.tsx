@@ -5,44 +5,94 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut } from 'next-auth/react'
 
+interface NavItem {
+  label: string
+  href: string
+  icon: string
+}
+
+interface NavSection {
+  title: string
+  items: NavItem[]
+}
+
+const navSections: NavSection[] = [
+  {
+    title: 'Core',
+    items: [
+      { label: 'Dashboard',  href: '/admin/dashboard',  icon: '📊' },
+      { label: 'Analytics',  href: '/admin/analytics',  icon: '📉' },
+      { label: 'Stock',      href: '/admin/stocks',     icon: '📦' },
+    ],
+  },
+  {
+    title: 'E-commerce',
+    items: [
+      { label: 'Products', href: '/admin/products', icon: '📦' },
+      { label: 'Coupons',  href: '/admin/coupons',  icon: '🏷️' },
+    ],
+  },
+  {
+    title: 'Production Management',
+    items: [
+      { label: 'Labs',            href: '/admin/labs',            icon: '🏭' },
+      { label: 'Machines',        href: '/admin/machines',        icon: '⚙️' },
+      { label: 'Recipes',         href: '/admin/recipes',         icon: '👨‍🍳' },
+      { label: 'Raw Materials',   href: '/admin/raw-materials',   icon: '📦' },
+      { label: 'Suppliers',       href: '/admin/suppliers',       icon: '🚚' },
+      { label: 'Orders',          href: '/admin/purchase-orders', icon: '📋' },
+    ],
+  },
+  {
+    title: 'Production',
+    items: [
+      { label: 'Production',  href: '/admin/production/dashboard',  icon: '📊' },
+      { label: 'Forecast',    href: '/admin/production/forecast',   icon: '📅' },
+      { label: 'Workflows',   href: '/admin/production/workflows',  icon: '⚙️' },
+    ],
+  },
+]
+
 export default function AdminNav() {
   const pathname = usePathname()
 
-  const isActive = (path: string) => pathname === path
-
-  const navItems = [
-    { label: 'Dashboard', href: '/admin/dashboard', icon: '📊' },
-    { label: 'Analytics', href: '/admin/analytics', icon: '📉' },
-    { label: 'Products', href: '/admin/products', icon: '📦' },
-    { label: 'Stock', href: '/admin/stocks', icon: '📈' },
-    { label: 'Coupons', href: '/admin/coupons', icon: '🏷️' },
-    { label: 'Production', href: '/admin/production/dashboard', icon: '🏭' },
-    { label: 'Forecasting', href: '/admin/production/forecast', icon: '📅' },
-  ]
+  const isActive = (href: string) => pathname === href
 
   return (
-    <nav className="w-64 bg-gray-900 text-white flex flex-col">
+    <nav className="w-64 bg-gray-900 text-white flex flex-col min-h-screen">
       {/* Logo/Brand */}
       <div className="p-6 border-b border-gray-800">
-        <h2 className="text-xl font-bold">Maison Dorée</h2>
+        <h2 className="text-xl font-bold">Maison Doree</h2>
         <p className="text-xs text-gray-400 mt-1">Admin Panel</p>
       </div>
 
-      {/* Navigation Links */}
-      <div className="flex-1 p-4 space-y-2">
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-              isActive(item.href)
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-300 hover:bg-gray-800'
-            }`}
-          >
-            <span className="text-lg">{item.icon}</span>
-            <span className="font-medium">{item.label}</span>
-          </Link>
+      {/* Navigation Sections */}
+      <div className="flex-1 p-4 space-y-6 overflow-y-auto">
+        {navSections.map((section) => (
+          <div key={section.title}>
+            {/* Section Header */}
+            <p className="px-4 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-500">
+              {section.title}
+            </p>
+
+            {/* Section Items */}
+            <div className="space-y-1">
+              {section.items.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+                    isActive(item.href)
+                      ? 'bg-blue-600 text-white'
+                      : 'text-gray-300 hover:bg-gray-800'
+                  }`}
+                >
+                  <span className="text-base leading-none">{item.icon}</span>
+                  <span className="text-sm font-medium">{item.label}</span>
+                </Link>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
