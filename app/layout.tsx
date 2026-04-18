@@ -1,6 +1,7 @@
 import React from 'react'
 import type { Metadata } from 'next'
 import './globals.css'
+import { Providers } from './providers'
 
 export const metadata: Metadata = {
   title: 'Maison Dorée - Pâtisseries Maroc',
@@ -15,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="fr">
       <body>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   )
