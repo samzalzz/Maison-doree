@@ -27,17 +27,17 @@ export default function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/products" className="text-amber-100 hover:text-amber-50 transition">
+                <Link href="/client/shop" className="text-amber-100 hover:text-amber-50 transition">
                   Products
                 </Link>
               </li>
               <li>
-                <Link href="/orders" className="text-amber-100 hover:text-amber-50 transition">
+                <Link href="/client/orders" className="text-amber-100 hover:text-amber-50 transition">
                   Orders
                 </Link>
               </li>
               <li>
-                <Link href="/auth/login" className="text-amber-100 hover:text-amber-50 transition">
+                <Link href="/login" className="text-amber-100 hover:text-amber-50 transition">
                   Account
                 </Link>
               </li>

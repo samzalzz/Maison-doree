@@ -23,25 +23,25 @@ export default function Navbar() {
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-8">
             <Link
-              href="/"
+              href="/client"
               className="text-gray-700 hover:text-amber-600 transition font-medium"
             >
               Home
             </Link>
             <Link
-              href="/shop"
+              href="/client/shop"
               className="text-gray-700 hover:text-amber-600 transition font-medium"
             >
               Shop
             </Link>
             <Link
-              href="/cart"
+              href="/client/cart"
               className="text-gray-700 hover:text-amber-600 transition font-medium"
             >
               Cart
             </Link>
             <Link
-              href="/orders"
+              href="/client/orders"
               className="text-gray-700 hover:text-amber-600 transition font-medium"
             >
               Orders
@@ -49,19 +49,19 @@ export default function Navbar() {
             {session && (
               <>
                 <Link
-                  href="/loyalty"
+                  href="/client/loyalty"
                   className="text-gray-700 hover:text-amber-600 transition font-medium"
                 >
                   Loyalty
                 </Link>
                 <Link
-                  href="/ratings"
+                  href="/client/ratings"
                   className="text-gray-700 hover:text-amber-600 transition font-medium"
                 >
                   Ratings
                 </Link>
                 <Link
-                  href="/tickets"
+                  href="/client/tickets"
                   className="text-gray-700 hover:text-amber-600 transition font-medium"
                 >
                   Tickets
@@ -69,7 +69,7 @@ export default function Navbar() {
               </>
             )}
             <Link
-              href="/help"
+              href="/client/help"
               className="text-gray-700 hover:text-amber-600 transition font-medium"
             >
               Help
@@ -93,13 +93,13 @@ export default function Navbar() {
             ) : (
               <>
                 <Link
-                  href="/auth/login"
+                  href="/login"
                   className="text-amber-600 font-medium hover:text-amber-700 transition"
                 >
                   Login
                 </Link>
                 <Link
-                  href="/auth/register"
+                  href="/register"
                   className="bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700 transition"
                 >
                   Register
@@ -142,25 +142,25 @@ export default function Navbar() {
         {isOpen && (
           <div className="md:hidden pb-4">
             <Link
-              href="/"
+              href="/client"
               className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
             >
               Home
             </Link>
             <Link
-              href="/shop"
+              href="/client/shop"
               className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
             >
               Shop
             </Link>
             <Link
-              href="/cart"
+              href="/client/cart"
               className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
             >
               Cart
             </Link>
             <Link
-              href="/orders"
+              href="/client/orders"
               className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
             >
               Orders
@@ -168,19 +168,19 @@ export default function Navbar() {
             {session && (
               <>
                 <Link
-                  href="/loyalty"
+                  href="/client/loyalty"
                   className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
                 >
                   Loyalty
                 </Link>
                 <Link
-                  href="/ratings"
+                  href="/client/ratings"
                   className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
                 >
                   Ratings
                 </Link>
                 <Link
-                  href="/tickets"
+                  href="/client/tickets"
                   className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
                 >
                   Tickets
@@ -188,7 +188,7 @@ export default function Navbar() {
               </>
             )}
             <Link
-              href="/help"
+              href="/client/help"
               className="block px-3 py-2 text-gray-700 hover:text-amber-600 transition"
             >
               Help
@@ -210,13 +210,13 @@ export default function Navbar() {
             ) : (
               <>
                 <Link
-                  href="/auth/login"
+                  href="/login"
                   className="block px-3 py-2 text-amber-600 hover:text-amber-700 transition"
                 >
                   Login
                 </Link>
                 <Link
-                  href="/auth/register"
+                  href="/register"
                   className="block px-3 py-2 text-amber-600 hover:text-amber-700 transition"
                 >
                   Register
