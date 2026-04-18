@@ -1112,6 +1112,21 @@ model RecipeVersionHistory {
   @@index([changeDate])
 }
 
+enum MRPSuggestionStatus {
+  PENDING
+  ORDERED
+  COMPLETED
+  DISMISSED
+}
+
+enum TraceabilityEventType {
+  MATERIAL_ALLOCATED
+  PRODUCTION_STARTED
+  PRODUCTION_COMPLETED
+  SHIPPED
+  RECALL
+}
+
 // ============================================================================
 // PHASE 1 SAP: PRODUCTION PLANNING (PP) & TRACEABILITY
 // ============================================================================
@@ -1119,7 +1134,7 @@ model RecipeVersionHistory {
 // PP-1. EnhancedForecast — ML-assisted demand forecast per recipe per day
 model EnhancedForecast {
   id       String   @id @default(cuid())
-  date     DateTime
+  date     DateTime @db.Date
   recipeId String
   recipe   Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
@@ -1171,6 +1186,7 @@ model MRPSuggestion {
   @@index([materialId])
   @@index([status])
   @@index([projectedDate])
+  @@index([supplierId])
 }
 
 // PP-3. MaterialAllocation — links a raw material to a production batch with quantities
@@ -1204,19 +1220,4 @@ model TraceabilityRecord {
 
   @@index([batchId])
   @@index([timestamp])
-}
-
-enum MRPSuggestionStatus {
-  PENDING
-  ORDERED
-  COMPLETED
-  DISMISSED
-}
-
-enum TraceabilityEventType {
-  MATERIAL_ALLOCATED
-  PRODUCTION_STARTED
-  PRODUCTION_COMPLETED
-  SHIPPED
-  RECALL
 }
