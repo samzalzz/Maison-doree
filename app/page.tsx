@@ -10,7 +10,10 @@ export default async function HomePage() {
   const products = await prisma.product.findMany({
     take: 12,
     where: { stock: { gt: 0 } },
-    orderBy: { isFeatured: 'desc', createdAt: 'desc' },
+    orderBy: [
+      { isFeatured: 'desc' },
+      { createdAt: 'desc' },
+    ],
   })
 
   return (
