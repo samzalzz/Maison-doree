@@ -449,6 +449,7 @@ model Recipe {
   producedMaterials RawMaterial[]
   forecasts         DailyForecast[]
   workflow          RecipeWorkflow?
+  versions          RecipeVersion[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -495,12 +496,14 @@ model RawMaterial {
   productionRecipe   Recipe? @relation(fields: [productionRecipeId], references: [id], onDelete: SetNull)
 
   // Relations
-  usedInRecipes        RecipeIngredient[]   @relation("RawMaterialIngredients")
-  usedAsIntermediateIn RecipeIngredient[]   @relation("IntermediateIngredients")
-  labStocks            LabStock[]
-  transferSuggestions  TransferSuggestion[]
-  purchaseOrders       PurchaseOrder[]
-  qualityInspections   QualityInspection[]
+  usedInRecipes           RecipeIngredient[]        @relation("RawMaterialIngredients")
+  usedAsIntermediateIn    RecipeIngredient[]        @relation("IntermediateIngredients")
+  labStocks               LabStock[]
+  transferSuggestions     TransferSuggestion[]
+  purchaseOrders          PurchaseOrder[]
+  qualityInspections      QualityInspection[]
+  recipeVersionIngredients    RecipeVersionIngredient[] @relation("RawMaterialVersion")
+  recipeVersionIntermediates  RecipeVersionIngredient[] @relation("IntermediateVersionUsage")
 
   @@unique([name, type])
   @@index([isIntermediate])
@@ -1022,4 +1025,83 @@ model WorkflowExecution {
   @@index([workflowId])
   @@index([status])
   @@index([startedAt])
+}
+
+// ============================================================================
+// PHASE 1 SAP: RECIPE DEVELOPMENT (RD)
+// ============================================================================
+
+// RD-1. RecipeVersion — a versioned snapshot of a recipe with cost tracking
+model RecipeVersion {
+  id            String   @id @default(cuid())
+  recipeId      String
+  recipe        Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  versionNumber Int
+  versionName   String?
+  description   String?
+  laborMinutes  Int
+
+  estimatedCost  Decimal?  @db.Decimal(12, 2)
+  lastCostUpdate DateTime?
+  isActive       Boolean   @default(true)
+  deprecatedAt   DateTime?
+
+  // Self-referential: points to the version this one was branched from
+  previousVersionId String?
+  previousVersion   RecipeVersion?  @relation("VersionHistory", fields: [previousVersionId], references: [id], onDelete: SetNull)
+  nextVersions      RecipeVersion[] @relation("VersionHistory")
+
+  // Relations
+  changes     RecipeVersionHistory[]
+  ingredients RecipeVersionIngredient[]
+
+  createdBy String // admin user ID
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([recipeId, versionNumber])
+  @@index([recipeId])
+  @@index([isActive])
+  @@index([createdAt])
+}
+
+// RD-2. RecipeVersionIngredient — an ingredient line inside a recipe version
+model RecipeVersionIngredient {
+  id              String        @id @default(cuid())
+  recipeVersionId String
+  recipeVersion   RecipeVersion @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
+
+  rawMaterialId  String?
+  rawMaterial    RawMaterial? @relation("RawMaterialVersion", fields: [rawMaterialId], references: [id], onDelete: SetNull)
+
+  intermediateId   String?
+  intermediate     RawMaterial? @relation("IntermediateVersionUsage", fields: [intermediateId], references: [id], onDelete: SetNull)
+
+  quantity    Decimal  @db.Decimal(10, 2)
+  unit        String
+  costPerUnit Decimal? @db.Decimal(12, 4)
+  totalCost   Decimal? @db.Decimal(12, 2)
+  notes       String?
+
+  @@index([recipeVersionId])
+}
+
+// RD-3. RecipeVersionHistory — an audit log entry recording a field change on a recipe version
+model RecipeVersionHistory {
+  id              String        @id @default(cuid())
+  recipeVersionId String
+  recipeVersion   RecipeVersion @relation(fields: [recipeVersionId], references: [id], onDelete: Cascade)
+
+  changeType String  // e.g. "INGREDIENT_ADDED" | "COST_UPDATED" | "STATUS_CHANGED"
+  fieldName  String?
+  oldValue   String?
+  newValue   String?
+
+  changedBy  String   // admin user ID
+  changeDate DateTime @default(now())
+  reason     String?
+
+  @@index([recipeVersionId])
+  @@index([changeDate])
 }
