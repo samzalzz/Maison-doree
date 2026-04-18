@@ -12,6 +12,9 @@ import { prisma } from '@/lib/db/prisma'
  * any server-side helpers that need the raw config object.
  */
 export const authOptions: NextAuthConfig = {
+  // Trust any host (needed for deployed instances with dynamic URLs)
+  trustHost: true,
+
   // -------------------------------------------------------------------------
   // Session strategy
   // -------------------------------------------------------------------------
