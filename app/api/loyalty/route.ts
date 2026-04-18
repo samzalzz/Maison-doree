@@ -1,86 +1,108 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { withAuth } from '@/lib/auth-middleware'
+import { determineTier } from '@/lib/loyalty'
 
 // ---------------------------------------------------------------------------
-// GET /api/loyalty  (authenticated user)
-// ---------------------------------------------------------------------------
-// Returns the loyalty card info for the authenticated user.
-// If no loyalty card exists, it is created automatically on first access.
+// GET /api/loyalty  — authenticated user
+// Returns loyalty card + tier info + points balance.
+// Auto-creates the card if the user doesn't have one yet.
 // ---------------------------------------------------------------------------
 
-export const GET = withAuth(async (req, { token }) => {
+export const GET = withAuth(async (_req: NextRequest, { token }) => {
   try {
-    // Try to find existing loyalty card
-    let loyaltyCard = await prisma.loyaltyCard.findUnique({
+    // Upsert loyalty card
+    let card = await prisma.loyaltyCard.findUnique({
       where: { userId: token.id },
     })
 
-    // If not found, create one
-    if (!loyaltyCard) {
-      loyaltyCard = await prisma.loyaltyCard.create({
-        data: {
-          userId: token.id,
-          points: 0,
-          totalSpent: 0,
-          tier: 'BRONZE',
-        },
+    if (!card) {
+      card = await prisma.loyaltyCard.create({
+        data: { userId: token.id, points: 0, totalSpent: 0, tier: 'BRONZE' },
       })
     }
 
-    // Calculate stats from orders
-    const orders = await prisma.order.findMany({
-      where: {
-        userId: token.id,
-        status: 'DELIVERED',
-      },
-      select: {
-        totalPrice: true,
-      },
+    // Recalculate totalSpent from delivered orders (source of truth)
+    const deliveredOrders = await prisma.order.findMany({
+      where: { userId: token.id, status: 'DELIVERED' },
+      select: { totalPrice: true },
     })
 
-    const totalSpentFromOrders = orders.reduce(
-      (sum, order) => sum + Number(order.totalPrice),
+    const totalSpent = deliveredOrders.reduce(
+      (sum, o) => sum + Number(o.totalPrice),
       0,
     )
+    const tier = determineTier(totalSpent)
 
-    // Determine tier based on total spent
-    let tier: 'BRONZE' | 'SILVER' | 'GOLD' = 'BRONZE'
-    if (totalSpentFromOrders >= 500) {
-      tier = 'GOLD'
-    } else if (totalSpentFromOrders >= 100) {
-      tier = 'SILVER'
-    }
-
-    // Calculate points (1 point per MAD spent, rounded)
-    const points = Math.floor(totalSpentFromOrders)
-
-    // Update card with current stats if changed
+    // Update card if values diverged
     if (
-      loyaltyCard.tier !== tier ||
-      Number(loyaltyCard.totalSpent) !== totalSpentFromOrders ||
-      loyaltyCard.points !== points
+      Number(card.totalSpent) !== totalSpent ||
+      card.tier !== tier
     ) {
-      loyaltyCard = await prisma.loyaltyCard.update({
-        where: { id: loyaltyCard.id },
-        data: {
-          tier,
-          totalSpent: totalSpentFromOrders,
-          points,
-        },
+      card = await prisma.loyaltyCard.update({
+        where: { id: card.id },
+        data: { totalSpent, tier },
       })
     }
 
-    return NextResponse.json({ success: true, data: loyaltyCard })
+    // Next-tier progress info
+    let nextTier: string | null = null
+    let spendToNextTier: number | null = null
+    let progressPercent = 100
+
+    if (tier === 'BRONZE') {
+      nextTier = 'SILVER'
+      spendToNextTier = Math.max(0, 100 - totalSpent)
+      progressPercent = Math.min(100, (totalSpent / 100) * 100)
+    } else if (tier === 'SILVER') {
+      nextTier = 'GOLD'
+      spendToNextTier = Math.max(0, 500 - totalSpent)
+      progressPercent = Math.min(100, ((totalSpent - 100) / 400) * 100)
+    }
+
+    // Earliest expiring non-zero balance (for expiration info)
+    const soonestExpiry = await prisma.loyaltyTransaction.findFirst({
+      where: {
+        loyaltyCardId: card.id,
+        expiresAt: { not: null, gt: new Date() },
+        points: { gt: 0 },
+      },
+      orderBy: { expiresAt: 'asc' },
+      select: { expiresAt: true, points: true },
+    })
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        card: {
+          id: card.id,
+          userId: card.userId,
+          points: card.points,
+          totalSpent: Number(card.totalSpent),
+          tier: card.tier,
+          createdAt: card.createdAt,
+          updatedAt: card.updatedAt,
+        },
+        progress: {
+          currentTier: tier,
+          nextTier,
+          spendToNextTier,
+          progressPercent: Math.round(progressPercent),
+        },
+        expiry: soonestExpiry
+          ? {
+              expiresAt: soonestExpiry.expiresAt,
+              points: soonestExpiry.points,
+            }
+          : null,
+      },
+    })
   } catch (error) {
     console.error('[GET /api/loyalty] Error:', error)
     return NextResponse.json(
       {
         success: false,
-        error: {
-          code: 'INTERNAL_ERROR',
-          message: 'Failed to retrieve loyalty card information.',
-        },
+        error: { code: 'INTERNAL_ERROR', message: 'Failed to retrieve loyalty card.' },
       },
       { status: 500 },
     )
