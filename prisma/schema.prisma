@@ -448,9 +448,25 @@ model Recipe {
   batches           ProductionBatch[]
   producedMaterials RawMaterial[]
   forecasts         DailyForecast[]
+  workflow          RecipeWorkflow?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+// 16b. RecipeWorkflow — the production workflow attached to a recipe
+model RecipeWorkflow {
+  id       String @id @default(cuid())
+  recipeId String @unique
+  recipe   Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  steps String  // JSON array of WorkflowStep objects
+  labId String? // which lab to execute in (optional snapshot)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([recipeId])
 }
 
 // 17. RecipeIngredient — an ingredient (raw or intermediate) used in a recipe

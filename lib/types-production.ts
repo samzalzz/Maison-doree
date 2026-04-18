@@ -313,6 +313,52 @@ export type CanvasEdge = {
 }
 
 // ============================================================================
+// RECIPE WORKFLOW TYPES
+// ============================================================================
+
+export type RecipeWorkflowStepType = 'material_check' | 'machine_operation' | 'output'
+
+export type MaterialCheckStep = {
+  type: 'material_check'
+  materialIds: string[]
+  operator: 'all_available'
+}
+
+export type MachineOperationStep = {
+  type: 'machine_operation'
+  machineId: string
+  labId: string
+  durationMinutes: number
+  outputMaterialId?: string | null
+}
+
+export type OutputStep = {
+  type: 'output'
+  materialId: string
+  quantity: number
+}
+
+export type RecipeWorkflowStep = MaterialCheckStep | MachineOperationStep | OutputStep
+
+export type RecipeWorkflow = {
+  id: string
+  recipeId: string
+  steps: RecipeWorkflowStep[]
+  labId?: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+export type RecipeWorkflowResponse = {
+  id: string
+  recipeId: string
+  labId: string | null
+  steps: RecipeWorkflowStep[]
+  createdAt: Date
+  updatedAt: Date
+}
+
+// ============================================================================
 // PHASE 4: ADVANCED FEATURE TYPES
 // ============================================================================
 

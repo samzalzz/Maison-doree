@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useToast } from '@/lib/hooks/useToast'
 import { LoadMoreButton } from '@/components/ui/LoadMoreButton'
+import { useRouter } from 'next/navigation'
 import {
   Plus,
   Search,
@@ -14,6 +15,7 @@ import {
   RefreshCw,
   Clock,
   Package,
+  GitBranch,
 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -821,6 +823,7 @@ function DeleteConfirmModal({
 // ---------------------------------------------------------------------------
 
 export default function AdminRecipesPage() {
+  const router = useRouter()
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [materials, setMaterials] = useState<RawMaterial[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -1094,6 +1097,16 @@ export default function AdminRecipesPage() {
                     {/* Actions */}
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() =>
+                            router.push(`/admin/recipes/${recipe.id}/workflow`)
+                          }
+                          className="p-1.5 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded transition-colors"
+                          title="Edit workflow"
+                          aria-label={`Edit workflow for ${recipe.name}`}
+                        >
+                          <GitBranch className="w-4 h-4" />
+                        </button>
                         <button
                           onClick={() => setEditRecipe(recipe)}
                           className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
