@@ -3,6 +3,7 @@
 import { useCallback, useDeferredValue, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { getStatusBadgeColor } from '@/lib/helpers/badge-colors';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,19 +67,6 @@ export default function SupplierListPage() {
       abortController.abort();
     };
   }, [fetchSuppliers]);
-
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'bg-green-100 text-green-800';
-      case 'INACTIVE':
-        return 'bg-gray-100 text-gray-800';
-      case 'SUSPENDED':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-blue-100 text-blue-800';
-    }
-  };
 
   const getReliabilityColor = (score: number) => {
     if (score >= 90) return 'text-green-600';

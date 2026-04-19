@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import { getStatusBadgeColor } from '@/lib/helpers/badge-colors';
 
 interface SupplierDetail {
   id: string;
@@ -54,7 +55,9 @@ interface RecentOrder {
 export default function SupplierDetailPage() {
   const router = useRouter();
   const params = useParams();
-  const supplierId = params.id as string;
+
+  // Issue 7: type-guard params.id instead of a bare cast
+  const supplierId = Array.isArray(params.id) ? params.id[0] : params.id;
 
   const [supplier, setSupplier] = useState<SupplierDetail | null>(null);
   const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
@@ -63,12 +66,17 @@ export default function SupplierDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchSupplierDetail = useCallback(async () => {
-    const controller = new AbortController();
+  // Keep a stable ref to the latest AbortController so mutation handlers
+  // can pass the signal when re-fetching after a PATCH / DELETE.
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Issue 1: signal is passed in from the useEffect; the return-value
+  // pattern was dead code — cleanup is now owned by the effect itself.
+  const fetchSupplierDetail = useCallback(async (signal: AbortSignal) => {
     try {
       setLoading(true);
       const response = await fetch(`/api/supplier/suppliers/${supplierId}`, {
-        signal: controller.signal,
+        signal,
       });
       if (!response.ok) throw new Error('Failed to fetch supplier');
 
@@ -79,31 +87,21 @@ export default function SupplierDetailPage() {
       setRecentOrders(data.data.recentOrders || []);
       setError(null);
     } catch (err) {
+      // Ignore abort errors — expected on cleanup or fast navigation.
       if (err instanceof Error && err.name !== 'AbortError') {
         setError(err.message);
       }
     } finally {
       setLoading(false);
     }
-    return () => controller.abort();
   }, [supplierId]);
 
   useEffect(() => {
-    fetchSupplierDetail();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    fetchSupplierDetail(controller.signal);
+    return () => controller.abort();   // cleanup properly registered
   }, [fetchSupplierDetail]);
-
-  const getStatusBadgeColor = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return 'bg-green-100 text-green-800';
-      case 'INACTIVE':
-        return 'bg-gray-100 text-gray-800';
-      case 'SUSPENDED':
-        return 'bg-red-100 text-red-800';
-      default:
-        return 'bg-blue-100 text-blue-800';
-    }
-  };
 
   const getTrendColor = (trend: string) => {
     switch (trend) {
@@ -118,14 +116,19 @@ export default function SupplierDetailPage() {
     }
   };
 
+  // Issue 3: thresholds aligned with list page (90 / 70)
   const getReliabilityColor = (score: number | null | undefined) => {
     if (score === null || score === undefined) return 'text-gray-600';
-    if (score >= 80) return 'text-green-600';
-    if (score >= 60) return 'text-yellow-600';
+    if (score >= 90) return 'text-green-600';
+    if (score >= 70) return 'text-yellow-600';
     return 'text-red-600';
   };
 
+  // Issue 2: confirmation guard + disabled state via the shared loading flag
   const handleBlockSupplier = async () => {
+    if (!window.confirm('Are you sure? This will block the supplier and prevent future orders.')) {
+      return;
+    }
     try {
       const response = await fetch(`/api/supplier/suppliers/${supplierId}`, {
         method: 'PATCH',
@@ -133,28 +136,35 @@ export default function SupplierDetailPage() {
         body: JSON.stringify({ status: 'SUSPENDED' }),
       });
       if (!response.ok) throw new Error('Failed to block supplier');
-      await fetchSupplierDetail();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      await fetchSupplierDetail(controller.signal);
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      }
+      setError(err instanceof Error ? err.message : 'Failed to block supplier');
     }
   };
 
+  // Issue 2: confirmation guard for destructive catalog removal
   const handleRemoveCatalogEntry = async (catalogId: string) => {
+    if (!window.confirm('Remove this material from the catalog?')) {
+      return;
+    }
     try {
       const response = await fetch(
         `/api/supplier/suppliers/${supplierId}/catalog/${catalogId}`,
         { method: 'DELETE' }
       );
       if (!response.ok) throw new Error('Failed to remove catalog entry');
-      await fetchSupplierDetail();
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      await fetchSupplierDetail(controller.signal);
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      }
+      setError(err instanceof Error ? err.message : 'Failed to remove material');
     }
   };
+
+  // Issue 7: guard for missing supplierId
+  if (!supplierId) return <div>Invalid supplier ID</div>;
 
   if (loading) return <div className="p-6 text-center">Loading supplier details...</div>;
   if (error) return <div className="p-6 text-center text-red-600">Error: {error}</div>;
@@ -188,10 +198,12 @@ export default function SupplierDetailPage() {
           >
             Archive Supplier
           </button>
+          {/* Issue 2: disabled during async operations to prevent double-submit */}
           <button
             type="button"
             onClick={handleBlockSupplier}
-            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
+            disabled={loading}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Block Supplier
           </button>
@@ -256,13 +268,15 @@ export default function SupplierDetailPage() {
       {performance?.categoryBreakdown && performance.categoryBreakdown.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold mb-4">Performance by Category</h2>
+          {/* Issue 6: caption for screen readers + scope on th elements */}
           <table className="w-full">
+            <caption className="sr-only">Category Breakdown</caption>
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">On-Time %</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Quality %</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Score</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">On-Time %</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Quality %</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Score</th>
               </tr>
             </thead>
             <tbody>
@@ -297,21 +311,28 @@ export default function SupplierDetailPage() {
         {catalog.length === 0 ? (
           <p className="text-gray-500 text-center py-6">No materials in catalog</p>
         ) : (
+          /* Issue 6: caption for screen readers + scope on th elements */
           <table className="w-full">
+            <caption className="sr-only">Materials Supplied</caption>
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Material</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Price per Unit</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Min Order</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Lead Time</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Material</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Price per Unit</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Min Order</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Lead Time</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody>
               {catalog.map((entry) => (
                 <tr key={entry.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-3">{entry.materialName}</td>
-                  <td className="px-4 py-3">€{parseFloat(entry.pricePerUnit).toFixed(2)}</td>
+                  {/* Issue 4: guard against NaN before calling toFixed */}
+                  <td className="px-4 py-3">
+                    €{entry.pricePerUnit && !isNaN(parseFloat(entry.pricePerUnit))
+                      ? parseFloat(entry.pricePerUnit).toFixed(2)
+                      : 'N/A'}
+                  </td>
                   <td className="px-4 py-3">{entry.minOrderQuantity} units</td>
                   <td className="px-4 py-3">{entry.leadTimeDays} days</td>
                   <td className="px-4 py-3">
@@ -343,16 +364,18 @@ export default function SupplierDetailPage() {
       {recentOrders.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold mb-4">Recent Purchase Orders</h2>
+          {/* Issue 6: caption for screen readers + scope on th elements */}
           <table className="w-full">
+            <caption className="sr-only">Recent Purchase Orders</caption>
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">PO #</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Material</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Qty</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Expected</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actual</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">On-Time?</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">PO #</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Material</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Qty</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Expected</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actual</th>
+                <th scope="col" className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">On-Time?</th>
               </tr>
             </thead>
             <tbody>
@@ -368,7 +391,13 @@ export default function SupplierDetailPage() {
                   </td>
                   <td className="px-4 py-3 text-sm">{new Date(order.expectedDeliveryDate).toLocaleDateString()}</td>
                   <td className="px-4 py-3 text-sm">{order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString() : '-'}</td>
-                  <td className="px-4 py-3 text-center">{order.isOnTime ? '✓' : '✗'}</td>
+                  {/* Issue 8: aria-label makes the symbol meaningful to screen readers */}
+                  <td
+                    className="px-4 py-3 text-center"
+                    aria-label={order.isOnTime ? 'On time' : 'Late'}
+                  >
+                    {order.isOnTime ? '✓' : '✗'}
+                  </td>
                 </tr>
               ))}
             </tbody>

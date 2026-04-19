@@ -17,12 +17,10 @@ import '@testing-library/jest-dom';
 import SupplierDetailPage from '@/app/(admin)/supplier/suppliers/[id]/page';
 
 const mockRouterPush = jest.fn();
-const mockRouterBack = jest.fn();
 
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
     push: mockRouterPush,
-    back: mockRouterBack,
   }),
   useParams: () => ({
     id: 'sup-1',
@@ -120,10 +118,17 @@ describe('SupplierDetailPage', () => {
     },
   ];
 
+  // Issue 5: clearAllMocks is sufficient — no redundant .mockClear() calls
   beforeEach(() => {
     jest.clearAllMocks();
-    mockRouterPush.mockClear();
-    mockRouterBack.mockClear();
+    // Ensure window.confirm auto-accepts so confirmation-guarded mutations
+    // can be exercised without interactive prompts.
+    jest.spyOn(window, 'confirm').mockReturnValue(true);
+  });
+
+  // Issue 5: restore all spies / mocks after each test to prevent leakage
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('renders supplier heading with name', async () => {
@@ -180,9 +185,10 @@ describe('SupplierDetailPage', () => {
     });
 
     render(<SupplierDetailPage />);
+    // Issue 13: specific text matchers instead of broad regexes
     await waitFor(() => {
-      expect(screen.getByText(/96/)).toBeInTheDocument(); // on-time %
-      expect(screen.getByText(/88/)).toBeInTheDocument(); // quality score
+      expect(screen.getByText('96%')).toBeInTheDocument(); // on-time %
+      expect(screen.getByText('88%')).toBeInTheDocument(); // quality score
     });
   });
 
@@ -437,6 +443,7 @@ describe('SupplierDetailPage', () => {
 
     await user.click(screen.getByRole('button', { name: /block supplier/i }));
 
+    // Issue 10: use global.fetch consistently
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
         '/api/supplier/suppliers/sup-1',
@@ -609,10 +616,12 @@ describe('SupplierDetailPage', () => {
 
     await user.click(removeButtons[0]);
 
-    // Verify DELETE was called with the catalog entry ID
-    expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/catalog/cat-1'),
-      expect.objectContaining({ method: 'DELETE' })
-    );
+    // Issue 10: use global.fetch consistently
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/catalog/cat-1'),
+        expect.objectContaining({ method: 'DELETE' })
+      );
+    });
   });
 });
