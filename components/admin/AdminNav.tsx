@@ -40,7 +40,7 @@ const navSections: NavSection[] = [
       { label: 'Machines',        href: '/admin/machines',        icon: '⚙️' },
       { label: 'Recipes',         href: '/admin/recipes',         icon: '👨‍🍳' },
       { label: 'Raw Materials',   href: '/admin/raw-materials',   icon: '📦' },
-      { label: 'Suppliers',       href: '/admin/suppliers',       icon: '🚚' },
+      { label: 'Supplier Accounts', href: '/admin/suppliers',       icon: '🚚' },
       { label: 'Orders',          href: '/admin/purchase-orders', icon: '📋' },
     ],
   },

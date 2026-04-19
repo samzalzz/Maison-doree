@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useDeferredValue, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
@@ -27,46 +27,45 @@ export default function SupplierListPage() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    fetchSuppliers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, searchTerm]);
+  // Defer search input so rapid keystrokes don't fire an API call on every
+  // character; React 18 schedules the deferred value at lower priority.
+  const deferredSearchTerm = useDeferredValue(searchTerm);
 
-  const fetchSuppliers = async () => {
+  // MAJOR FIX 1: wrap in useCallback so the function reference is stable and
+  // can be listed as a useEffect dependency without causing infinite loops.
+  // MAJOR FIX 2: AbortController cancels in-flight requests when a newer one
+  // starts, preventing stale responses from overwriting fresh data.
+  const fetchSuppliers = useCallback(async (signal: AbortSignal) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (statusFilter !== 'ALL') params.append('status', statusFilter);
-      if (searchTerm) params.append('search', searchTerm);
+      if (deferredSearchTerm) params.append('search', deferredSearchTerm);
 
-      const response = await fetch(`/api/supplier/suppliers?${params}`);
+      const response = await fetch(`/api/supplier/suppliers?${params}`, {
+        signal,
+      });
       if (!response.ok) throw new Error('Failed to fetch suppliers');
 
       const data = await response.json();
       setSuppliers(data.data.suppliers || []);
       setError(null);
     } catch (err) {
+      // Ignore abort errors — they are expected when the effect is cleaned up.
+      if (err instanceof Error && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, deferredSearchTerm]);
 
-  const handleStatusFilterChange = (value: string) => {
-    setStatusFilter(value);
-  };
-
-  const handleSearch = (term: string) => {
-    setSearchTerm(term);
-  };
-
-  const handleAddSupplier = () => {
-    router.push('/supplier/suppliers/new');
-  };
-
-  const handleRowClick = (supplierId: string) => {
-    router.push(`/supplier/suppliers/${supplierId}`);
-  };
+  useEffect(() => {
+    const abortController = new AbortController();
+    fetchSuppliers(abortController.signal);
+    return () => {
+      abortController.abort();
+    };
+  }, [fetchSuppliers]);
 
   const getStatusBadgeColor = (status: string) => {
     switch (status) {
@@ -91,24 +90,34 @@ export default function SupplierListPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Suppliers</h1>
+        {/* IMPORTANT FIX 8: type="button" prevents accidental form submission */}
         <button
-          onClick={handleAddSupplier}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+          type="button"
+          onClick={() => router.push('/supplier/suppliers/new')}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
         >
           Add Supplier
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow">
+      {/* IMPORTANT FIX 7: card container matches codebase conventions */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="p-4 border-b space-y-4">
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium mb-2">Search</label>
+              {/* IMPORTANT FIX 10: label connected to input via htmlFor/id */}
+              <label
+                htmlFor="search-input"
+                className="block text-sm font-medium mb-2"
+              >
+                Search
+              </label>
               <input
+                id="search-input"
                 type="text"
                 placeholder="Search by name or email..."
                 value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
+                onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
               />
             </div>
@@ -122,7 +131,7 @@ export default function SupplierListPage() {
               <select
                 id="status-filter"
                 value={statusFilter}
-                onChange={(e) => handleStatusFilterChange(e.target.value)}
+                onChange={(e) => setStatusFilter(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg"
                 aria-label="Status"
               >
@@ -150,39 +159,43 @@ export default function SupplierListPage() {
 
         {!loading && suppliers.length > 0 && (
           <table className="w-full">
+            {/* IMPORTANT FIX 7: table headers match codebase conventions */}
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Supplier Name
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Email
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Phone
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Reliability Score
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody>
               {suppliers.map((supplier) => (
+                // IMPORTANT FIX 11: removed dual navigation — row no longer has
+                // onClick. Navigation is provided exclusively by the "View Details"
+                // Link in the actions column.
                 <tr
                   key={supplier.id}
-                  onClick={() => handleRowClick(supplier.id)}
-                  className="border-b hover:bg-gray-50 cursor-pointer"
+                  className="border-b hover:bg-gray-50"
                 >
                   <td className="px-6 py-4 text-sm font-medium">
                     {supplier.name}
                   </td>
-                  <td className="px-6 py-4 text-sm">{supplier.email}</td>
+                  {/* MAJOR FIX 3: null guard matches phone column pattern */}
+                  <td className="px-6 py-4 text-sm">{supplier.email || '-'}</td>
                   <td className="px-6 py-4 text-sm">
                     {supplier.phone || '-'}
                   </td>
@@ -193,8 +206,9 @@ export default function SupplierListPage() {
                       {supplier.status}
                     </span>
                   </td>
+                  {/* IMPORTANT FIX 9: no color applied when score is null */}
                   <td
-                    className={`px-6 py-4 text-sm font-semibold ${getReliabilityColor(supplier.reliabilityScore ?? 0)}`}
+                    className={`px-6 py-4 text-sm font-semibold ${supplier.reliabilityScore != null ? getReliabilityColor(supplier.reliabilityScore) : ''}`}
                   >
                     {supplier.reliabilityScore != null
                       ? `${supplier.reliabilityScore.toFixed(1)}%`

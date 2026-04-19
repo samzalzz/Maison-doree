@@ -56,6 +56,8 @@ import SupplierListPage from '@/app/(admin)/supplier/suppliers/page'
 
 // ---------------------------------------------------------------------------
 // Fixtures
+// IMPORTANT FIX 12: added `phone` field to all mock suppliers to match
+// the SupplierListItem TypeScript interface.
 // ---------------------------------------------------------------------------
 
 const mockSuppliers = [
@@ -63,6 +65,7 @@ const mockSuppliers = [
     id: 'sup-1',
     name: 'Premier Foods',
     email: 'contact@premier.com',
+    phone: null,
     status: 'ACTIVE',
     reliabilityScore: 92,
   },
@@ -74,6 +77,7 @@ const mockSuppliersMulti = [
     id: 'sup-1',
     name: 'Premier Foods',
     email: 'contact@premier.com',
+    phone: null,
     status: 'ACTIVE',
     reliabilityScore: 92,
   },
@@ -81,6 +85,7 @@ const mockSuppliersMulti = [
     id: 'sup-2',
     name: 'Metro Supply',
     email: 'info@metro.com',
+    phone: null,
     status: 'INACTIVE',
     reliabilityScore: 75,
   },
@@ -88,6 +93,7 @@ const mockSuppliersMulti = [
     id: 'sup-3',
     name: 'Delta Goods',
     email: 'hello@delta.com',
+    phone: null,
     status: 'SUSPENDED',
     reliabilityScore: 60,
   },
@@ -126,11 +132,10 @@ function mockFetchEmpty() {
 // ---------------------------------------------------------------------------
 
 describe('SupplierListPage', () => {
+  // IMPORTANT FIX 14: removed the inert `if (!global.fetch)` guard — each
+  // test sets its own fetch mock, so the guard did nothing useful.
   beforeEach(() => {
     jest.clearAllMocks()
-    if (!global.fetch) {
-      global.fetch = jest.fn()
-    }
   })
 
   // -------------------------------------------------------------------------
@@ -180,6 +185,8 @@ describe('SupplierListPage', () => {
 
   // -------------------------------------------------------------------------
   // 4. Filters suppliers by status
+  // IMPORTANT FIX 13: added assertion that fetch was called with the correct
+  // status query parameter — not just that the select value changed.
   // -------------------------------------------------------------------------
   it('filters suppliers by status', async () => {
     const user = userEvent.setup()
@@ -190,25 +197,31 @@ describe('SupplierListPage', () => {
     const statusFilter = screen.getByRole('combobox', { name: /status/i })
     await user.selectOptions(statusFilter, 'ACTIVE')
     expect(statusFilter).toHaveValue('ACTIVE')
+
+    await waitFor(() => {
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('status=ACTIVE'),
+        expect.any(Object),
+      )
+    })
   })
 
   // -------------------------------------------------------------------------
-  // 5. Opens supplier detail on row click
+  // 5. Opens supplier detail via View Details link
+  // IMPORTANT FIX 11: row no longer has onClick — navigation is provided
+  // exclusively by the "View Details" link. Test updated accordingly.
   // -------------------------------------------------------------------------
-  it('opens supplier detail on row click', async () => {
-    const user = userEvent.setup()
+  it('navigates to supplier detail via View Details link', async () => {
     mockFetchWithSuppliers()
 
     render(<SupplierListPage />)
     await screen.findByText('Premier Foods')
 
-    const supplierRow = screen.getByText('Premier Foods').closest('tr')
-    if (supplierRow) {
-      await user.click(supplierRow)
-    }
-
-    // mockRouterPush is the shared instance used by the component
-    expect(mockRouterPush).toHaveBeenCalledWith('/supplier/suppliers/sup-1')
+    const viewDetailsLink = screen.getByRole('link', { name: /view details/i })
+    expect(viewDetailsLink).toHaveAttribute(
+      'href',
+      '/supplier/suppliers/sup-1',
+    )
   })
 
   // -------------------------------------------------------------------------
