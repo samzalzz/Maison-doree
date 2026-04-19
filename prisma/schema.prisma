@@ -397,6 +397,7 @@ model ProductionLab {
   batches             ProductionBatch[]
   outboundSuggestions TransferSuggestion[] @relation("SourceTransfers")
   inboundSuggestions  TransferSuggestion[] @relation("DestTransfers")
+  poSuggestions       PurchaseOrderSuggestion[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -507,6 +508,8 @@ model RawMaterial {
   recipeVersionIntermediates RecipeVersionIngredient[] @relation("IntermediateVersionUsage")
   mrpSuggestions             MRPSuggestion[]
   materialAllocations        MaterialAllocation[]
+  supplierCatalogs           SupplierCatalog[]
+  poSuggestions              PurchaseOrderSuggestion[]
 
   @@unique([name, type])
   @@index([isIntermediate])
@@ -642,9 +645,23 @@ model Supplier {
   leadTimeDays Int
   categories   String[] // e.g. ["Flour", "Sugar", "Chocolate"]
 
+  // New fields
+  address       String?
+  city          String?
+  contactPerson String?
+  status        String   @default("ACTIVE")
+  notes         String?
+
+  // Relations
   purchaseOrders     PurchaseOrder[]
   qualityInspections QualityInspection[]
   mrpSuggestions     MRPSuggestion[]
+
+  // New relations
+  catalogs           SupplierCatalog[]
+  poSuggestions      PurchaseOrderSuggestion[]
+  performanceMetric  SupplierPerformanceMetric?
+  categoryPerformance SupplierCategoryPerformance[]
 
   createdAt DateTime @default(now())
 
@@ -669,10 +686,19 @@ model PurchaseOrder {
   createdAt   DateTime  @default(now())
   deliveredAt DateTime?
 
+  // Workflow tracking
+  approvedBy           String?
+  sentAt               DateTime?
+  expectedDeliveryDate DateTime?
+  actualDeliveryDate   DateTime?
+  receivedQuantity     Decimal? @db.Decimal(10, 2)
+  qualityInspectionId  String?
+
   @@index([supplierId])
   @@index([materialId])
   @@index([status])
   @@index([deliveryDate])
+  @@index([approvedBy])
 }
 
 // ============================================================================
@@ -917,120 +943,255 @@ model InspectionCheckpoint {
 }
 
 // ---------------------------------------------------------------------------
-// WORKFLOW SYSTEM
+// SUPPLIER MANAGEMENT SYSTEM
 // ---------------------------------------------------------------------------
 
+model SupplierCatalog {
+  id              String      @id @default(cuid())
+  supplierId      String
+  supplier        Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  materialId      String
+  material        RawMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  unitPrice       Decimal     @db.Decimal(12, 4)
+  minOrderQty     Int
+  leadTimeDays    Int
+  isActive        Boolean     @default(true)
+
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  @@unique([supplierId, materialId])
+  @@index([supplierId])
+  @@index([materialId])
+}
+
+model PurchaseOrderSuggestion {
+  id              String      @id @default(cuid())
+  labId           String
+  lab             ProductionLab @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  materialId      String
+  material        RawMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  supplierId      String
+  supplier        Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  suggestedQty    Decimal     @db.Decimal(10, 2)
+  reasoning       String
+
+  status          String      @default("PENDING")
+
+  approvedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+
+  createdAt       DateTime    @default(now())
+  expiresAt       DateTime
+
+  @@index([labId])
+  @@index([status])
+  @@index([expiresAt])
+}
+
+model SupplierPerformanceMetric {
+  id              String      @id @default(cuid())
+  supplierId      String      @unique
+  supplier        Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  totalOrders     Int         @default(0)
+  totalDelivered  Int         @default(0)
+
+  onTimeCount     Int         @default(0)
+  onTimePercent   Int         @default(0)
+
+  inspectionsPassed Int       @default(0)
+  inspectionsFailed Int       @default(0)
+  qualityPassRate Int         @default(0)
+
+  trend30Day      String      @default("stable")
+  reliabilityScore Int        @default(0)
+
+  lastUpdated     DateTime    @updatedAt
+
+  @@index([supplierId])
+}
+
+model SupplierCategoryPerformance {
+  id              String      @id @default(cuid())
+  supplierId      String
+  supplier        Supplier    @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  category        String
+
+  onTimePercent   Int         @default(0)
+  qualityPassRate Int         @default(0)
+  reliabilityScore Int        @default(0)
+
+  lastUpdated     DateTime    @updatedAt
+
+  @@unique([supplierId, category])
+  @@index([supplierId])
+}
+
+// ---------------------------------------------------------------------------
+// WORKFLOW SYSTEM  (Phase 3)
+// ---------------------------------------------------------------------------
+
+// How a Workflow is triggered.
+// MANUAL      – explicit admin invocation (Phase 3 default)
+// SCHEDULED   – cron-based execution (Phase 4)
+// EVENT_BASED – triggered by a system event, e.g. low stock (Phase 4)
 enum WorkflowTriggerType {
-  BATCH_CREATED
-  BATCH_COMPLETED
-  LOW_STOCK
-  SCHEDULED
   MANUAL
+  SCHEDULED
+  EVENT_BASED
 }
 
-enum WorkflowActionType {
-  TRANSFER_STOCK
-  CREATE_ORDER
-  SEND_NOTIFICATION
-  LOG_EVENT
+// The kind of node a WorkflowStep represents.
+// ACTION    – executes a side-effect (transfer, notify, email, …)
+// CONDITION – evaluates WorkflowConditions and branches
+enum WorkflowStepType {
+  ACTION
+  CONDITION
 }
 
+// Comparison operator inside a WorkflowCondition.
 enum WorkflowConditionOperator {
   EQUALS
   GREATER_THAN
   LESS_THAN
   CONTAINS
-  STARTS_WITH
 }
 
-// 23. Workflow — a named automation rule with trigger and ordered steps
+// Lifecycle status of a WorkflowAction execution record.
+enum WorkflowActionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+// 23. Workflow — a named automation rule created by an admin
 model Workflow {
   id          String  @id @default(cuid())
   name        String
   description String?
-  enabled     Boolean @default(true)
 
-  triggerType   WorkflowTriggerType
-  triggerConfig Json
+  // Whether this workflow is available for execution
+  isActive Boolean @default(true)
 
-  steps      WorkflowStep[]
-  executions WorkflowExecution[]
+  // Trigger mechanism; defaults to MANUAL for Phase 3
+  triggerType WorkflowTriggerType @default(MANUAL)
 
-  createdBy      String
-  lastExecuted   DateTime?
-  executionCount Int       @default(0)
+  // Ordered execution nodes
+  steps WorkflowStep[]
+
+  // Execution history records
+  actions WorkflowAction[]
+
+  // Admin user ID — plain TEXT, no FK (User model out of scope for workflow)
+  createdBy String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([enabled])
-  @@index([triggerType])
+  @@index([isActive])
 }
 
-// 24. WorkflowStep — one ordered node (condition or action) within a workflow
+// 24. WorkflowStep — one ordered node within a workflow
 model WorkflowStep {
   id         String   @id @default(cuid())
   workflowId String
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
+  // 1-based execution order; unique per workflow
+  stepNumber Int
+
+  // ACTION executes a side-effect; CONDITION evaluates guards
+  type WorkflowStepType
+
+  // Identifies the concrete handler, e.g. "TRANSFER", "UPDATE_INVENTORY",
+  // "NOTIFY", "EMAIL". NULL for CONDITION steps.
+  actionType String?
+
+  // Flexible JSON config for the action handler, e.g.:
+  //   { sourceLabId: "…", destLabId: "…", materialId: "…", quantity: 100 }
+  // NULL for CONDITION steps.
+  actionPayload Json?
+
+  // Mirrors stepNumber for API ergonomics
   order Int
-  type  String // "condition" | "action"
 
-  condition WorkflowCondition?
-  action    WorkflowAction?
+  // Condition guards (only populated for CONDITION steps)
+  conditions WorkflowCondition[]
 
-  elseStepOrder Int?
+  // Execution history records for this step
+  actions WorkflowAction[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([workflowId, order])
+  @@unique([workflowId, stepNumber])
   @@index([workflowId])
+  @@index([workflowId, stepNumber])
 }
 
-// 25. WorkflowCondition — a boolean guard attached to a WorkflowStep
+// 25. WorkflowCondition — a boolean guard attached to a CONDITION step
+// Multiple conditions on one step are OR'd; across steps they are AND'd.
 model WorkflowCondition {
   id     String       @id @default(cuid())
-  stepId String       @unique
+  stepId String
   step   WorkflowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
 
-  field    String
+  // Field path to evaluate, e.g. "labStock.quantity", "materialId"
+  field String
+
+  // Comparison operator applied between field and value
   operator WorkflowConditionOperator
-  value    String
+
+  // Comparison value stored as string; parsed at runtime
+  value String
 
   createdAt DateTime @default(now())
+
+  @@index([stepId])
 }
 
-// 26. WorkflowAction — an executable side-effect attached to a WorkflowStep
+// 26. WorkflowAction — execution history record for one step run
+// This is an AUDIT TABLE, not a step template.  One row is created per
+// step execution and captures its outcome.
 model WorkflowAction {
-  id     String       @id @default(cuid())
-  stepId String       @unique
-  step   WorkflowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
 
-  type   WorkflowActionType
-  config Json
-
-  createdAt DateTime @default(now())
-}
-
-// 27. WorkflowExecution — one run of a workflow, with status and results
-model WorkflowExecution {
-  id         String   @id @default(cuid())
+  // Denormalised workflowId for efficient per-workflow history queries
   workflowId String
   workflow   Workflow @relation(fields: [workflowId], references: [id], onDelete: Cascade)
 
-  status       String // "pending" | "running" | "completed" | "failed"
+  stepId String
+  step   WorkflowStep @relation(fields: [stepId], references: [id], onDelete: Cascade)
+
+  // Execution lifecycle
+  status WorkflowActionStatus @default(PENDING)
+
+  // Timestamp when the action reached COMPLETED or FAILED
+  executedAt DateTime?
+
+  // Result payload, e.g.:
+  //   { "transferredQuantity": 100, "sourceStock": 50, "destStock": 250 }
+  result Json?
+
+  // Human-readable error when status = FAILED
   errorMessage String?
 
-  triggerData Json
-  results     Json?
-
-  startedAt   DateTime  @default(now())
-  completedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([workflowId])
+  @@index([stepId])
   @@index([status])
-  @@index([startedAt])
+  @@index([workflowId, status])
 }
 
 // ============================================================================
