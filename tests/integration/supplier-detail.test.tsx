@@ -14,10 +14,13 @@ import userEvent from '@testing-library/user-event';
 import '@testing-library/jest-dom';
 import SupplierDetailPage from '@/app/(admin)/supplier/suppliers/[id]/page';
 
+const mockRouterPush = jest.fn();
+const mockRouterBack = jest.fn();
+
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: jest.fn(),
-    back: jest.fn(),
+    push: mockRouterPush,
+    back: mockRouterBack,
   }),
   useParams: () => ({
     id: 'sup-1',
@@ -75,6 +78,8 @@ describe('SupplierDetailPage', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRouterPush.mockClear();
+    mockRouterBack.mockClear();
   });
 
   it('renders supplier heading with name', async () => {
@@ -218,5 +223,86 @@ describe('SupplierDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByText(/improving/i)).toBeInTheDocument();
     });
+  });
+
+  it('displays recent purchase orders table with PO details', async () => {
+    const mockRecentOrders = [
+      {
+        id: 'po-1',
+        poNumber: 'PO-2026-04-19-001',
+        totalAmount: '1250.50',
+        status: 'COMPLETED',
+        createdAt: '2026-04-15T10:00:00Z',
+      },
+      {
+        id: 'po-2',
+        poNumber: 'PO-2026-04-18-001',
+        totalAmount: '875.00',
+        status: 'PENDING',
+        createdAt: '2026-04-14T14:30:00Z',
+      },
+    ];
+
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          supplier: mockSupplier,
+          catalog: mockCatalog,
+          performance: mockPerformance,
+          recentOrders: mockRecentOrders,
+        },
+      }),
+    });
+
+    render(<SupplierDetailPage />);
+    await waitFor(() => {
+      // Check PO numbers
+      expect(screen.getByText('PO-2026-04-19-001')).toBeInTheDocument();
+      expect(screen.getByText('PO-2026-04-18-001')).toBeInTheDocument();
+
+      // Check amounts
+      expect(screen.getByText(/1250.50/)).toBeInTheDocument();
+      expect(screen.getByText(/875.00/)).toBeInTheDocument();
+
+      // Check statuses are rendered with correct colors.
+      // The status text is rendered directly inside the <span> that carries the color classes,
+      // so getByText returns the <span> itself.
+      const completedBadge = screen.getByText('COMPLETED');
+      expect(completedBadge).toHaveClass('bg-green-100', 'text-green-800');
+
+      const pendingBadge = screen.getByText('PENDING');
+      expect(pendingBadge).toHaveClass('bg-yellow-100', 'text-yellow-800');
+    });
+  });
+
+  it('has Add Material button that navigates to add-catalog route', async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          supplier: mockSupplier,
+          catalog: mockCatalog,
+          performance: mockPerformance,
+          recentOrders: [],
+        },
+      }),
+    });
+
+    const user = userEvent.setup();
+
+    render(<SupplierDetailPage />);
+
+    await waitFor(() => {
+      const addMaterialButton = screen.getByRole('button', { name: /add material/i });
+      expect(addMaterialButton).toBeInTheDocument();
+    });
+
+    const addMaterialButton = screen.getByRole('button', { name: /add material/i });
+    await user.click(addMaterialButton);
+
+    expect(mockRouterPush).toHaveBeenCalledWith('/supplier/suppliers/sup-1/add-catalog');
   });
 });
