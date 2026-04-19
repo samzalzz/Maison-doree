@@ -539,4 +539,80 @@ describe('SupplierDetailPage', () => {
       expect(screen.getByRole('button', { name: /^remove$/i })).toBeInTheDocument();
     });
   });
+
+  it('displays Total Orders metric in performance scorecard', async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          supplier: mockSupplier,
+          catalog: mockCatalog,
+          performance: mockPerformance,
+          recentOrders: [],
+        },
+      }),
+    });
+
+    render(<SupplierDetailPage />);
+
+    await waitFor(() => {
+      // Verify "Total Orders" label is displayed
+      expect(screen.getByText('Total Orders')).toBeInTheDocument();
+
+      // Verify the count (12) is displayed
+      expect(screen.getByText('12')).toBeInTheDocument();
+
+      // Verify "Last 30 days" subtitle
+      expect(screen.getByText('Last 30 days')).toBeInTheDocument();
+    });
+  });
+
+  it('calls DELETE when Remove catalog button is clicked', async () => {
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            supplier: mockSupplier,
+            catalog: mockCatalog,
+            performance: mockPerformance,
+            recentOrders: [],
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ success: true }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            supplier: mockSupplier,
+            catalog: [],
+            performance: mockPerformance,
+            recentOrders: [],
+          },
+        }),
+      });
+
+    const user = userEvent.setup();
+    render(<SupplierDetailPage />);
+
+    await waitFor(() => expect(screen.getByText('Flour')).toBeInTheDocument());
+
+    const removeButtons = screen.getAllByRole('button', { name: /remove/i });
+    expect(removeButtons.length).toBeGreaterThan(0);
+
+    await user.click(removeButtons[0]);
+
+    // Verify DELETE was called with the catalog entry ID
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/catalog/cat-1'),
+      expect.objectContaining({ method: 'DELETE' })
+    );
+  });
 });

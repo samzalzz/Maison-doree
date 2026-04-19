@@ -223,27 +223,30 @@ export default function SupplierDetailPage() {
       {performance && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold mb-4">Performance Metrics (30 days)</h2>
-          <div className="grid grid-cols-4 gap-6">
+          <div className="grid grid-cols-5 gap-4">
             <div className="border-l-4 border-blue-500 pl-4">
               <p className="text-sm text-gray-600">On-Time Delivery</p>
               <p className="text-3xl font-bold text-blue-600">{performance.onTimeDeliveryPercentage}%</p>
-              <p className="text-xs text-gray-500 mt-1">{performance.ordersCompleted30Days} orders</p>
             </div>
             <div className="border-l-4 border-purple-500 pl-4">
               <p className="text-sm text-gray-600">Quality Score</p>
               <p className="text-3xl font-bold text-purple-600">{performance.qualityScore}%</p>
-              <p className="text-xs text-gray-500 mt-1">Based on inspections</p>
-            </div>
-            <div className="border-l-4 border-green-500 pl-4">
-              <p className="text-sm text-gray-600">Trend</p>
-              <p className={`text-2xl font-bold ${getTrendColor(performance.trend)}`}>{performance.trend}</p>
-              <p className="text-xs text-gray-500 mt-1">Avg lead: {performance.averageLeadTime}d</p>
             </div>
             <div className="border-l-4 border-pink-500 pl-4">
               <p className="text-sm text-gray-600">Reliability Score</p>
               <p className={`text-3xl font-bold ${getReliabilityColor(performance?.reliabilityScore ?? supplier.reliabilityScore)}`}>
                 {supplier.reliabilityScore ?? 'N/A'}
               </p>
+            </div>
+            <div className="border-l-4 border-green-500 pl-4">
+              <p className="text-sm text-gray-600">Trend</p>
+              <p className={`text-2xl font-bold ${getTrendColor(performance.trend)}`}>{performance.trend}</p>
+              <p className="text-xs text-gray-500 mt-1">Avg lead: {performance.averageLeadTime}d</p>
+            </div>
+            <div className="border-l-4 border-amber-500 pl-4">
+              <p className="text-sm text-gray-600">Total Orders</p>
+              <p className="text-3xl font-bold text-amber-600">{performance.ordersCompleted30Days}</p>
+              <p className="text-xs text-gray-500 mt-1">Last 30 days</p>
             </div>
           </div>
         </div>
