@@ -52,6 +52,12 @@ const navSections: NavSection[] = [
       { label: 'Workflows',   href: '/admin/production/workflows',  icon: '⚙️' },
     ],
   },
+  {
+    title: 'Supplier Management',
+    items: [
+      { label: 'Suppliers', href: '/supplier/suppliers', icon: '🚚' },
+    ],
+  },
 ]
 
 export default function AdminNav() {

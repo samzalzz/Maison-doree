@@ -12,9 +12,17 @@ const customConfig = {
     // Support the @/* path alias configured in tsconfig.json
     '^@/(.*)$': '<rootDir>/$1',
   },
-  // Only discover test files under lib/__tests__ for now;
-  // extend this glob as more test directories are added.
-  testMatch: ['<rootDir>/lib/__tests__/**/*.test.ts'],
+  // Test files under lib/__tests__ (service/validator unit tests),
+  // app/api/**/__tests__ (API route integration tests),
+  // app/(admin)/admin/__tests__ (UI component/page tests), and
+  // tests/integration (cross-cutting integration tests).
+  testMatch: [
+    '<rootDir>/lib/__tests__/**/*.test.ts',
+    '<rootDir>/app/api/**/__tests__/**/*.test.ts',
+    '<rootDir>/app/**/__tests__/**/*.test.tsx',
+    '<rootDir>/tests/integration/**/*.test.tsx',
+    '<rootDir>/tests/integration/**/*.test.ts',
+  ],
 }
 
 module.exports = createJestConfig(customConfig)
