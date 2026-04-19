@@ -87,6 +87,8 @@ token.txt
 # Documentation (keep private)
 *.md
 !README.md
+!docs/superpowers/specs/*.md
+!docs/superpowers/plans/*.md
 PLAN.md
 DESIGN.md
 SUMMARY.md
