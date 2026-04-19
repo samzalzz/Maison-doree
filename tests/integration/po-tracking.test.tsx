@@ -13,9 +13,10 @@
 // Module mocks — must come before any import
 // ---------------------------------------------------------------------------
 
+const mockRouterPush = jest.fn();
 jest.mock('next/navigation', () => ({
   useRouter: () => ({
-    push: jest.fn(),
+    push: mockRouterPush,
     refresh: jest.fn(),
   }),
 }));
@@ -93,6 +94,11 @@ const mockPOs = [
 describe('POTrackingPage', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockRouterPush.mockClear();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('renders Purchase Orders heading', async () => {
@@ -225,5 +231,89 @@ describe('POTrackingPage', () => {
       const allOnes = screen.getAllByText(/^1$/);
       expect(allOnes.length).toBeGreaterThanOrEqual(1);  // pending stat card
     });
+  });
+
+  // ---------------------------------------------------------------------------
+  // GAP 1 – Search by PO number or supplier name
+  // ---------------------------------------------------------------------------
+
+  it('searches POs by PO number or supplier name', async () => {
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { purchaseOrders: mockPOs, stats: { total: 2, pending: 1 } },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: { purchaseOrders: [mockPOs[0]], stats: { total: 1, pending: 1 } },
+        }),
+      });
+
+    const user = userEvent.setup();
+    render(<POTrackingPage />);
+
+    const searchInput = screen.getByPlaceholderText(/search by po number/i);
+    await user.type(searchInput, 'Premier');
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('search=Premier'),
+        expect.any(Object)
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // GAP 2 – Supplier name is a link to supplier detail page
+  // ---------------------------------------------------------------------------
+
+  it('displays supplier name as a link to supplier detail page', async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { purchaseOrders: mockPOs, stats: { total: 2, pending: 1 } },
+      }),
+    });
+
+    render(<POTrackingPage />);
+
+    await waitFor(() => {
+      const supplierLink = screen.getByRole('link', { name: 'Premier Foods' });
+      expect(supplierLink).toHaveAttribute('href', '/supplier/suppliers/sup-1');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // GAP 3 – View Details button routing
+  // ---------------------------------------------------------------------------
+
+  it('navigates to PO detail page when View Details button is clicked', async () => {
+    const mockRouter = require('next/navigation').useRouter();
+    const user = userEvent.setup();
+
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: { purchaseOrders: mockPOs, stats: { total: 2, pending: 1 } },
+      }),
+    });
+
+    render(<POTrackingPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('PO-2026-04-19-001')).toBeInTheDocument();
+    });
+
+    const viewButtons = screen.getAllByRole('button', { name: /view details/i });
+    await user.click(viewButtons[0]);
+
+    expect(mockRouter.push).toHaveBeenCalledWith('/supplier/purchase-orders/po-1');
   });
 });
