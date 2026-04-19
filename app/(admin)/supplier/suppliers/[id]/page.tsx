@@ -29,14 +29,26 @@ interface PerformanceMetrics {
   trend: string;
   ordersCompleted30Days: number;
   averageLeadTime: number;
+  reliabilityScore?: number;
+  categoryBreakdown?: Array<{
+    categoryId: string;
+    categoryName: string;
+    onTimePercentage: number;
+    qualityScore: number;
+    reliabilityScore: number;
+  }>;
 }
 
 interface RecentOrder {
   id: string;
   poNumber: string;
-  totalAmount: string;
+  materialName: string;
+  quantity: number;
+  unit: string;
   status: string;
-  createdAt: string;
+  expectedDeliveryDate: string;
+  actualDeliveryDate: string | null;
+  isOnTime: boolean;
 }
 
 export default function SupplierDetailPage() {
@@ -106,6 +118,44 @@ export default function SupplierDetailPage() {
     }
   };
 
+  const getReliabilityColor = (score: number | null | undefined) => {
+    if (score === null || score === undefined) return 'text-gray-600';
+    if (score >= 80) return 'text-green-600';
+    if (score >= 60) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const handleBlockSupplier = async () => {
+    try {
+      const response = await fetch(`/api/supplier/suppliers/${supplierId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'SUSPENDED' }),
+      });
+      if (!response.ok) throw new Error('Failed to block supplier');
+      await fetchSupplierDetail();
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
+    }
+  };
+
+  const handleRemoveCatalogEntry = async (catalogId: string) => {
+    try {
+      const response = await fetch(
+        `/api/supplier/suppliers/${supplierId}/catalog/${catalogId}`,
+        { method: 'DELETE' }
+      );
+      if (!response.ok) throw new Error('Failed to remove catalog entry');
+      await fetchSupplierDetail();
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message);
+      }
+    }
+  };
+
   if (loading) return <div className="p-6 text-center">Loading supplier details...</div>;
   if (error) return <div className="p-6 text-center text-red-600">Error: {error}</div>;
   if (!supplier) return <div className="p-6 text-center">Supplier not found</div>;
@@ -123,13 +173,29 @@ export default function SupplierDetailPage() {
             {supplier.status}
           </span>
         </div>
-        <button
-          type="button"
-          onClick={() => router.push(`/supplier/suppliers/${supplierId}/edit`)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-        >
-          Edit Supplier
-        </button>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => router.push(`/supplier/suppliers/${supplierId}/edit`)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+          >
+            Edit Supplier
+          </button>
+          <button
+            type="button"
+            onClick={() => router.push(`/supplier/suppliers/${supplierId}/archive`)}
+            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded-lg"
+          >
+            Archive Supplier
+          </button>
+          <button
+            type="button"
+            onClick={handleBlockSupplier}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
+          >
+            Block Supplier
+          </button>
+        </div>
       </div>
 
       {/* Contact Information */}
@@ -157,7 +223,7 @@ export default function SupplierDetailPage() {
       {performance && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
           <h2 className="text-lg font-semibold mb-4">Performance Metrics (30 days)</h2>
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-4 gap-6">
             <div className="border-l-4 border-blue-500 pl-4">
               <p className="text-sm text-gray-600">On-Time Delivery</p>
               <p className="text-3xl font-bold text-blue-600">{performance.onTimeDeliveryPercentage}%</p>
@@ -173,7 +239,42 @@ export default function SupplierDetailPage() {
               <p className={`text-2xl font-bold ${getTrendColor(performance.trend)}`}>{performance.trend}</p>
               <p className="text-xs text-gray-500 mt-1">Avg lead: {performance.averageLeadTime}d</p>
             </div>
+            <div className="border-l-4 border-pink-500 pl-4">
+              <p className="text-sm text-gray-600">Reliability Score</p>
+              <p className={`text-3xl font-bold ${getReliabilityColor(performance?.reliabilityScore ?? supplier.reliabilityScore)}`}>
+                {supplier.reliabilityScore ?? 'N/A'}
+              </p>
+            </div>
           </div>
+        </div>
+      )}
+
+      {/* Category Breakdown */}
+      {performance?.categoryBreakdown && performance.categoryBreakdown.length > 0 && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold mb-4">Performance by Category</h2>
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Category</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">On-Time %</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Quality %</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Score</th>
+              </tr>
+            </thead>
+            <tbody>
+              {performance.categoryBreakdown.map((cat) => (
+                <tr key={cat.categoryId} className="border-b hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium">{cat.categoryName}</td>
+                  <td className="px-4 py-3">{cat.onTimePercentage}%</td>
+                  <td className="px-4 py-3">{cat.qualityScore}%</td>
+                  <td className={`px-4 py-3 font-semibold ${getReliabilityColor(cat.reliabilityScore)}`}>
+                    {cat.reliabilityScore.toFixed(1)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -211,13 +312,22 @@ export default function SupplierDetailPage() {
                   <td className="px-4 py-3">{entry.minOrderQuantity} units</td>
                   <td className="px-4 py-3">{entry.leadTimeDays} days</td>
                   <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => router.push(`/supplier/suppliers/${supplierId}/catalog/${entry.id}`)}
-                      className="text-blue-600 hover:text-blue-800 text-sm"
-                    >
-                      Edit
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/supplier/suppliers/${supplierId}/catalog/${entry.id}`)}
+                        className="text-blue-600 hover:text-blue-800 text-sm"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCatalogEntry(entry.id)}
+                        className="text-red-600 hover:text-red-800 text-sm"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -233,23 +343,29 @@ export default function SupplierDetailPage() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">PO Number</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Amount</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">PO #</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Material</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Qty</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Expected</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Actual</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">On-Time?</th>
               </tr>
             </thead>
             <tbody>
               {recentOrders.map((order) => (
                 <tr key={order.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-3 font-medium">{order.poNumber}</td>
-                  <td className="px-4 py-3">€{parseFloat(order.totalAmount).toFixed(2)}</td>
+                  <td className="px-4 py-3">{order.materialName}</td>
+                  <td className="px-4 py-3">{order.quantity} {order.unit}</td>
                   <td className="px-4 py-3">
                     <span className={`px-2 py-1 rounded text-xs font-medium ${order.status === 'COMPLETED' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
                       {order.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-sm">{new Date(order.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-sm">{new Date(order.expectedDeliveryDate).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 text-sm">{order.actualDeliveryDate ? new Date(order.actualDeliveryDate).toLocaleDateString() : '-'}</td>
+                  <td className="px-4 py-3 text-center">{order.isOnTime ? '✓' : '✗'}</td>
                 </tr>
               ))}
             </tbody>

@@ -5,7 +5,9 @@
  *
  * Integration tests for the Supplier Detail page.
  * Covers: supplier heading, contact info, performance metrics,
- * catalog entries, edit button, status badge color, and trend indicator.
+ * catalog entries, edit/archive/block buttons, status badge color,
+ * trend indicator, reliability score, category breakdown, and
+ * expanded recent PO columns.
  */
 
 import React from 'react';
@@ -74,7 +76,49 @@ describe('SupplierDetailPage', () => {
     trend: 'IMPROVING',
     ordersCompleted30Days: 12,
     averageLeadTime: 2.5,
+    reliabilityScore: 92,
+    categoryBreakdown: [
+      {
+        categoryId: 'cat-grains',
+        categoryName: 'Grains',
+        onTimePercentage: 97,
+        qualityScore: 90,
+        reliabilityScore: 93.5,
+      },
+      {
+        categoryId: 'cat-dairy',
+        categoryName: 'Dairy',
+        onTimePercentage: 94,
+        qualityScore: 85,
+        reliabilityScore: 89.0,
+      },
+    ],
   };
+
+  const mockRecentOrders = [
+    {
+      id: 'po-1',
+      poNumber: 'PO-2026-04-19-001',
+      materialName: 'Flour',
+      quantity: 200,
+      unit: 'kg',
+      status: 'COMPLETED',
+      expectedDeliveryDate: '2026-04-18T00:00:00Z',
+      actualDeliveryDate: '2026-04-18T10:00:00Z',
+      isOnTime: true,
+    },
+    {
+      id: 'po-2',
+      poNumber: 'PO-2026-04-18-001',
+      materialName: 'Butter',
+      quantity: 50,
+      unit: 'kg',
+      status: 'PENDING',
+      expectedDeliveryDate: '2026-04-20T00:00:00Z',
+      actualDeliveryDate: null,
+      isOnTime: false,
+    },
+  ];
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -225,24 +269,7 @@ describe('SupplierDetailPage', () => {
     });
   });
 
-  it('displays recent purchase orders table with PO details', async () => {
-    const mockRecentOrders = [
-      {
-        id: 'po-1',
-        poNumber: 'PO-2026-04-19-001',
-        totalAmount: '1250.50',
-        status: 'COMPLETED',
-        createdAt: '2026-04-15T10:00:00Z',
-      },
-      {
-        id: 'po-2',
-        poNumber: 'PO-2026-04-18-001',
-        totalAmount: '875.00',
-        status: 'PENDING',
-        createdAt: '2026-04-14T14:30:00Z',
-      },
-    ];
-
+  it('displays recent purchase orders table with expanded columns', async () => {
     global.fetch = jest.fn().mockResolvedValueOnce({
       ok: true,
       json: async () => ({
@@ -258,22 +285,38 @@ describe('SupplierDetailPage', () => {
 
     render(<SupplierDetailPage />);
     await waitFor(() => {
-      // Check PO numbers
+      // PO numbers
       expect(screen.getByText('PO-2026-04-19-001')).toBeInTheDocument();
       expect(screen.getByText('PO-2026-04-18-001')).toBeInTheDocument();
 
-      // Check amounts
-      expect(screen.getByText(/1250.50/)).toBeInTheDocument();
-      expect(screen.getByText(/875.00/)).toBeInTheDocument();
+      // Material names
+      expect(screen.getByText('Butter')).toBeInTheDocument();
 
-      // Check statuses are rendered with correct colors.
-      // The status text is rendered directly inside the <span> that carries the color classes,
-      // so getByText returns the <span> itself.
+      // Quantities with units
+      expect(screen.getByText(/200.*kg/)).toBeInTheDocument();
+      expect(screen.getByText(/50.*kg/)).toBeInTheDocument();
+
+      // Column headers (Material appears in both catalog and orders tables)
+      const materialHeaders = screen.getAllByText('Material');
+      expect(materialHeaders.length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Qty')).toBeInTheDocument();
+      expect(screen.getByText('Expected')).toBeInTheDocument();
+      expect(screen.getByText('Actual')).toBeInTheDocument();
+      expect(screen.getByText('On-Time?')).toBeInTheDocument();
+
+      // Status badges with correct colors
       const completedBadge = screen.getByText('COMPLETED');
       expect(completedBadge).toHaveClass('bg-green-100', 'text-green-800');
 
       const pendingBadge = screen.getByText('PENDING');
       expect(pendingBadge).toHaveClass('bg-yellow-100', 'text-yellow-800');
+
+      // On-time flag: checkmark for isOnTime=true, X for false
+      expect(screen.getByText('✓')).toBeInTheDocument();
+      expect(screen.getByText('✗')).toBeInTheDocument();
+
+      // Actual delivery shows '-' when null
+      expect(screen.getByText('-')).toBeInTheDocument();
     });
   });
 
@@ -304,5 +347,196 @@ describe('SupplierDetailPage', () => {
     await user.click(addMaterialButton);
 
     expect(mockRouterPush).toHaveBeenCalledWith('/supplier/suppliers/sup-1/add-catalog');
+  });
+
+  it('displays Archive Supplier and Block Supplier buttons in header', async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          supplier: mockSupplier,
+          catalog: mockCatalog,
+          performance: mockPerformance,
+          recentOrders: [],
+        },
+      }),
+    });
+
+    render(<SupplierDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /archive supplier/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /block supplier/i })).toBeInTheDocument();
+    });
+  });
+
+  it('navigates to archive route when Archive Supplier is clicked', async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          supplier: mockSupplier,
+          catalog: mockCatalog,
+          performance: mockPerformance,
+          recentOrders: [],
+        },
+      }),
+    });
+
+    const user = userEvent.setup();
+    render(<SupplierDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /archive supplier/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /archive supplier/i }));
+    expect(mockRouterPush).toHaveBeenCalledWith('/supplier/suppliers/sup-1/archive');
+  });
+
+  it('calls PATCH to suspend supplier when Block Supplier is clicked', async () => {
+    const patchResponse = {
+      ok: true,
+      json: async () => ({ success: true }),
+    };
+    // First call: initial fetch; second call: PATCH block; third call: refetch after block
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            supplier: mockSupplier,
+            catalog: mockCatalog,
+            performance: mockPerformance,
+            recentOrders: [],
+          },
+        }),
+      })
+      .mockResolvedValueOnce(patchResponse)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          success: true,
+          data: {
+            supplier: { ...mockSupplier, status: 'SUSPENDED' },
+            catalog: mockCatalog,
+            performance: mockPerformance,
+            recentOrders: [],
+          },
+        }),
+      });
+
+    const user = userEvent.setup();
+    render(<SupplierDetailPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /block supplier/i })).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /block supplier/i }));
+
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/supplier/suppliers/sup-1',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ status: 'SUSPENDED' }),
+        })
+      );
+    });
+  });
+
+  it('displays reliability score in performance section', async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          supplier: mockSupplier,
+          catalog: mockCatalog,
+          performance: mockPerformance,
+          recentOrders: [],
+        },
+      }),
+    });
+
+    render(<SupplierDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Reliability Score')).toBeInTheDocument();
+      // reliabilityScore of 92 should appear (supplier.reliabilityScore)
+      const scoreElements = screen.getAllByText('92');
+      expect(scoreElements.length).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  it('displays category breakdown table when data is present', async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          supplier: mockSupplier,
+          catalog: mockCatalog,
+          performance: mockPerformance,
+          recentOrders: [],
+        },
+      }),
+    });
+
+    render(<SupplierDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByText('Performance by Category')).toBeInTheDocument();
+      expect(screen.getByText('Grains')).toBeInTheDocument();
+      expect(screen.getByText('Dairy')).toBeInTheDocument();
+      // on-time % column
+      expect(screen.getByText(/97%/)).toBeInTheDocument();
+      expect(screen.getByText(/94%/)).toBeInTheDocument();
+      // reliability scores formatted to 1 decimal
+      expect(screen.getByText('93.5')).toBeInTheDocument();
+      expect(screen.getByText('89.0')).toBeInTheDocument();
+    });
+  });
+
+  it('does not display category breakdown section when no data', async () => {
+    const perfWithoutBreakdown = { ...mockPerformance, categoryBreakdown: [] };
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          supplier: mockSupplier,
+          catalog: mockCatalog,
+          performance: perfWithoutBreakdown,
+          recentOrders: [],
+        },
+      }),
+    });
+
+    render(<SupplierDetailPage />);
+    await waitFor(() => {
+      expect(screen.queryByText('Performance by Category')).not.toBeInTheDocument();
+    });
+  });
+
+  it('displays Remove button alongside Edit in catalog rows', async () => {
+    global.fetch = jest.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        success: true,
+        data: {
+          supplier: mockSupplier,
+          catalog: mockCatalog,
+          performance: mockPerformance,
+          recentOrders: [],
+        },
+      }),
+    });
+
+    render(<SupplierDetailPage />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /^remove$/i })).toBeInTheDocument();
+    });
   });
 });
