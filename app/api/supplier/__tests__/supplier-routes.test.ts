@@ -798,6 +798,20 @@ describe('PATCH /api/supplier/catalogs/[catalogId]', () => {
     expect(res.status).toBe(500)
     expect(json.error.code).toBe('SERVER_ERROR')
   })
+
+  it('returns 403 when user is WORKER', async () => {
+    mockGetToken.mockResolvedValueOnce(
+      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+    )
+
+    const req = makeRequest('PATCH', `/api/supplier/catalogs/${CATALOG_ID}`, {
+      unitPrice: 50.00,
+    })
+    const res = await updateCatalogEntry(req, { params: { catalogId: CATALOG_ID } })
+
+    expect(res.status).toBe(403)
+    expect(mockService.updateCatalogEntry).not.toHaveBeenCalled()
+  })
 })
 
 // ============================================================================

@@ -13,9 +13,9 @@ export const GET = withAuth(async (req: NextRequest, { token }) => {
   try {
     const url = new URL(req.url)
     const filters = PurchaseOrderFiltersSchema.parse({
-      status: url.searchParams.get('status'),
-      supplierId: url.searchParams.get('supplierId'),
-      materialId: url.searchParams.get('materialId'),
+      status: url.searchParams.get('status') ?? undefined,
+      supplierId: url.searchParams.get('supplierId') ?? undefined,
+      materialId: url.searchParams.get('materialId') ?? undefined,
       page: url.searchParams.get('page') ? parseInt(url.searchParams.get('page')!) : 1,
       limit: url.searchParams.get('limit') ? parseInt(url.searchParams.get('limit')!) : 20,
     })

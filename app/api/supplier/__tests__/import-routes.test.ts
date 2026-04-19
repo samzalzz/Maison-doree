@@ -215,6 +215,13 @@ describe('POST /api/supplier/import/suppliers – valid data', () => {
     expect(json.data.failed).toBe(0)
   })
 
+})
+
+// ============================================================================
+// 1b. POST /api/supplier/import/suppliers – error handling (all rows fail)
+// ============================================================================
+
+describe('POST /api/supplier/import/suppliers – error handling', () => {
   it('returns 200 even when all rows fail (partial import is allowed)', async () => {
     const csv = [
       'name,email',

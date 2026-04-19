@@ -677,6 +677,23 @@ describe('GET /api/supplier/purchase-orders', () => {
     expect(res.status).toBe(500)
     expect(json.error.code).toBe('SERVER_ERROR')
   })
+
+  it('returns 200 with default filters when all optional params are absent', async () => {
+    mockService.listPurchaseOrders.mockResolvedValueOnce([])
+
+    const req = makeRequest('GET', '/api/supplier/purchase-orders')
+    const res = await listPurchaseOrders(req)
+    const json = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(json.success).toBe(true)
+    expect(mockService.listPurchaseOrders).toHaveBeenCalledWith(
+      expect.objectContaining({
+        page: 1,
+        limit: 20,
+      }),
+    )
+  })
 })
 
 // ============================================================================
