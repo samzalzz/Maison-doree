@@ -7,16 +7,16 @@ import {
 } from '@/lib/services/workflow-service'
 
 // ---------------------------------------------------------------------------
-// GET /api/admin/workflows/[id]  (admin only)
+// GET /api/admin/workflows/[workflowId]  (admin only)
 // ---------------------------------------------------------------------------
 // Returns a single workflow with its ordered steps and their conditions.
 // ---------------------------------------------------------------------------
 
 export const GET = withAdminAuth(async (_req: NextRequest, { params }) => {
   try {
-    const { id } = params as { id: string }
+    const { workflowId } = params as { workflowId: string }
 
-    const workflow = await workflowService.getWorkflow(id)
+    const workflow = await workflowService.getWorkflow(workflowId)
 
     return NextResponse.json({ success: true, data: workflow }, { status: 200 })
   } catch (error) {
@@ -24,7 +24,7 @@ export const GET = withAdminAuth(async (_req: NextRequest, { params }) => {
       return NextResponse.json(
         {
           success: false,
-          error: { code: 'NOT_FOUND', message: error.message },
+          error: { code: 'NOT_FOUND', message: (error as Error).message },
         },
         { status: 404 },
       )
@@ -41,7 +41,7 @@ export const GET = withAdminAuth(async (_req: NextRequest, { params }) => {
 })
 
 // ---------------------------------------------------------------------------
-// PATCH /api/admin/workflows/[id]  (admin only)
+// PATCH /api/admin/workflows/[workflowId]  (admin only)
 // ---------------------------------------------------------------------------
 // Applies a sparse/partial update to a workflow.
 // Body: partial { name?, description?, isActive?, triggerType? }
@@ -49,7 +49,7 @@ export const GET = withAdminAuth(async (_req: NextRequest, { params }) => {
 
 export const PATCH = withAdminAuth(async (req: NextRequest, { params, token }) => {
   try {
-    const { id } = params as { id: string }
+    const { workflowId } = params as { workflowId: string }
 
     const body = await req.json().catch(() => null)
 
@@ -63,7 +63,7 @@ export const PATCH = withAdminAuth(async (req: NextRequest, { params, token }) =
       )
     }
 
-    const updated = await workflowService.updateWorkflow(id, body, token.id)
+    const updated = await workflowService.updateWorkflow(workflowId, body, token.id)
 
     return NextResponse.json({ success: true, data: updated }, { status: 200 })
   } catch (error) {
@@ -74,7 +74,7 @@ export const PATCH = withAdminAuth(async (req: NextRequest, { params, token }) =
           error: {
             code: 'VALIDATION_ERROR',
             message: 'Validation failed',
-            errors: error.errors,
+            errors: (error as any).errors,
           },
         },
         { status: 400 },
@@ -84,7 +84,7 @@ export const PATCH = withAdminAuth(async (req: NextRequest, { params, token }) =
       return NextResponse.json(
         {
           success: false,
-          error: { code: 'NOT_FOUND', message: error.message },
+          error: { code: 'NOT_FOUND', message: (error as Error).message },
         },
         { status: 404 },
       )
@@ -101,7 +101,7 @@ export const PATCH = withAdminAuth(async (req: NextRequest, { params, token }) =
 })
 
 // ---------------------------------------------------------------------------
-// DELETE /api/admin/workflows/[id]  (admin only)
+// DELETE /api/admin/workflows/[workflowId]  (admin only)
 // ---------------------------------------------------------------------------
 // Deletes a workflow and cascades to all steps, conditions, and action history.
 // Returns 204 No Content on success.
@@ -109,9 +109,9 @@ export const PATCH = withAdminAuth(async (req: NextRequest, { params, token }) =
 
 export const DELETE = withAdminAuth(async (_req: NextRequest, { params }) => {
   try {
-    const { id } = params as { id: string }
+    const { workflowId } = params as { workflowId: string }
 
-    await workflowService.deleteWorkflow(id)
+    await workflowService.deleteWorkflow(workflowId)
 
     return new NextResponse(null, { status: 204 })
   } catch (error) {
@@ -119,7 +119,7 @@ export const DELETE = withAdminAuth(async (_req: NextRequest, { params }) => {
       return NextResponse.json(
         {
           success: false,
-          error: { code: 'NOT_FOUND', message: error.message },
+          error: { code: 'NOT_FOUND', message: (error as Error).message },
         },
         { status: 404 },
       )
