@@ -7,49 +7,19 @@ import {
 } from '@/lib/services/workflow-service'
 
 // ---------------------------------------------------------------------------
-// GET /api/admin/workflows/[id]  (admin only)
+// PATCH /api/admin/workflows/[workflowId]/steps/[stepId]/conditions/[conditionId]
+// (admin only)
 // ---------------------------------------------------------------------------
-// Returns a single workflow with its ordered steps and their conditions.
+// Applies a partial update to a workflow condition.
 // ---------------------------------------------------------------------------
 
-export const GET = withAdminAuth(async (_req: NextRequest, { params }) => {
+export const PATCH = withAdminAuth(async (req: NextRequest, { params }) => {
   try {
-    const { id } = params as { id: string }
-
-    const workflow = await workflowService.getWorkflow(id)
-
-    return NextResponse.json({ success: true, data: workflow }, { status: 200 })
-  } catch (error) {
-    if (error instanceof NotFoundError) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: { code: 'NOT_FOUND', message: error.message },
-        },
-        { status: 404 },
-      )
+    const { conditionId } = params as {
+      workflowId: string
+      stepId: string
+      conditionId: string
     }
-    console.error('[Workflow API]', error)
-    return NextResponse.json(
-      {
-        success: false,
-        error: { code: 'UNKNOWN', message: 'Internal server error' },
-      },
-      { status: 500 },
-    )
-  }
-})
-
-// ---------------------------------------------------------------------------
-// PATCH /api/admin/workflows/[id]  (admin only)
-// ---------------------------------------------------------------------------
-// Applies a sparse/partial update to a workflow.
-// Body: partial { name?, description?, isActive?, triggerType? }
-// ---------------------------------------------------------------------------
-
-export const PATCH = withAdminAuth(async (req: NextRequest, { params, token }) => {
-  try {
-    const { id } = params as { id: string }
 
     const body = await req.json().catch(() => null)
 
@@ -63,9 +33,9 @@ export const PATCH = withAdminAuth(async (req: NextRequest, { params, token }) =
       )
     }
 
-    const updated = await workflowService.updateWorkflow(id, body, token.id)
+    const condition = await workflowService.updateWorkflowCondition(conditionId, body)
 
-    return NextResponse.json({ success: true, data: updated }, { status: 200 })
+    return NextResponse.json({ success: true, data: condition }, { status: 200 })
   } catch (error) {
     if (error instanceof ValidationError) {
       return NextResponse.json(
@@ -101,17 +71,21 @@ export const PATCH = withAdminAuth(async (req: NextRequest, { params, token }) =
 })
 
 // ---------------------------------------------------------------------------
-// DELETE /api/admin/workflows/[id]  (admin only)
+// DELETE /api/admin/workflows/[workflowId]/steps/[stepId]/conditions/[conditionId]
+// (admin only)
 // ---------------------------------------------------------------------------
-// Deletes a workflow and cascades to all steps, conditions, and action history.
-// Returns 204 No Content on success.
+// Deletes a single workflow condition.
 // ---------------------------------------------------------------------------
 
 export const DELETE = withAdminAuth(async (_req: NextRequest, { params }) => {
   try {
-    const { id } = params as { id: string }
+    const { conditionId } = params as {
+      workflowId: string
+      stepId: string
+      conditionId: string
+    }
 
-    await workflowService.deleteWorkflow(id)
+    await workflowService.deleteWorkflowCondition(conditionId)
 
     return new NextResponse(null, { status: 204 })
   } catch (error) {

@@ -1,71 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/db/prisma'
 import { withAdminAuth } from '@/lib/auth-middleware'
-import { CreateWorkflowSchema } from '@/lib/validators-production'
-
-// ---------------------------------------------------------------------------
-// GET /api/admin/workflows  (admin only)
-// ---------------------------------------------------------------------------
-// Returns a paginated list of all workflows.
-// Query params: skip, take, triggerType, enabled
-// ---------------------------------------------------------------------------
-
-export const GET = withAdminAuth(async (req: NextRequest) => {
-  try {
-    const { searchParams } = new URL(req.url)
-
-    const skip = Math.max(0, parseInt(searchParams.get('skip') ?? '0', 10) || 0)
-    const take = Math.min(100, Math.max(1, parseInt(searchParams.get('take') ?? '20', 10) || 20))
-
-    const triggerTypeParam = searchParams.get('triggerType')
-    const validTriggers = ['BATCH_CREATED', 'BATCH_COMPLETED', 'LOW_STOCK', 'SCHEDULED', 'MANUAL'] as const
-    type TriggerType = (typeof validTriggers)[number]
-    const triggerType: TriggerType | undefined =
-      triggerTypeParam && validTriggers.includes(triggerTypeParam as TriggerType)
-        ? (triggerTypeParam as TriggerType)
-        : undefined
-
-    const enabledParam = searchParams.get('enabled')
-    const enabled: boolean | undefined =
-      enabledParam === 'true' ? true : enabledParam === 'false' ? false : undefined
-
-    const where = {
-      ...(triggerType !== undefined && { triggerType }),
-      ...(enabled !== undefined && { enabled }),
-    }
-
-    const [workflows, total] = await Promise.all([
-      prisma.workflow.findMany({
-        where,
-        skip,
-        take,
-        orderBy: { createdAt: 'desc' },
-        include: {
-          _count: { select: { steps: true, executions: true } },
-        },
-      }),
-      prisma.workflow.count({ where }),
-    ])
-
-    return NextResponse.json({
-      success: true,
-      data: workflows,
-      pagination: { skip, take, total, hasMore: skip + take < total },
-    })
-  } catch (error) {
-    console.error('[GET /api/admin/workflows] Error:', error)
-    return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to retrieve workflows.' } },
-      { status: 500 },
-    )
-  }
-})
+import {
+  workflowService,
+  ValidationError,
+  NotFoundError,
+} from '@/lib/services/workflow-service'
 
 // ---------------------------------------------------------------------------
 // POST /api/admin/workflows  (admin only)
 // ---------------------------------------------------------------------------
-// Creates a new workflow together with its ordered steps (conditions + actions)
-// in a single atomic transaction.
+// Creates a new workflow.
+// Body: { name, description?, isActive?, triggerType? }
+// Returns: 201 { success: true, data: workflow }
 // ---------------------------------------------------------------------------
 
 export const POST = withAdminAuth(async (req: NextRequest, { token }) => {
@@ -74,88 +20,116 @@ export const POST = withAdminAuth(async (req: NextRequest, { token }) => {
 
     if (!body || typeof body !== 'object') {
       return NextResponse.json(
-        { success: false, error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON.' } },
+        {
+          success: false,
+          error: { code: 'BAD_REQUEST', message: 'Request body must be valid JSON.' },
+        },
         { status: 400 },
       )
     }
 
-    const result = CreateWorkflowSchema.safeParse(body)
+    const workflow = await workflowService.createWorkflow(body, token.id)
 
-    if (!result.success) {
+    return NextResponse.json({ success: true, data: workflow }, { status: 201 })
+  } catch (error) {
+    if (error instanceof ValidationError) {
       return NextResponse.json(
         {
           success: false,
           error: {
             code: 'VALIDATION_ERROR',
-            message: 'Request validation failed.',
-            details: result.error.flatten(),
+            message: 'Validation failed',
+            errors: error.errors,
           },
         },
-        { status: 422 },
+        { status: 400 },
       )
     }
-
-    const { name, description, triggerType, triggerConfig, steps } = result.data
-
-    const workflow = await prisma.$transaction(async (tx) => {
-      const created = await tx.workflow.create({
-        data: {
-          name,
-          description: description ?? null,
-          triggerType,
-          triggerConfig,
-          createdBy: token.id,
+    if (error instanceof NotFoundError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'NOT_FOUND', message: error.message },
         },
-      })
+        { status: 404 },
+      )
+    }
+    console.error('[Workflow API]', error)
+    return NextResponse.json(
+      {
+        success: false,
+        error: { code: 'UNKNOWN', message: 'Internal server error' },
+      },
+      { status: 500 },
+    )
+  }
+})
 
-      for (const step of steps) {
-        const workflowStep = await tx.workflowStep.create({
-          data: {
-            workflowId: created.id,
-            order: step.order,
-            type: step.type,
-            elseStepOrder: step.elseStepOrder ?? null,
-          },
-        })
+// ---------------------------------------------------------------------------
+// GET /api/admin/workflows  (admin only)
+// ---------------------------------------------------------------------------
+// Lists workflows with optional filters and pagination.
+// Query params: isActive (boolean), triggerType (enum), createdBy (string),
+//               page (number), limit (number)
+// Default pagination: page=0, limit=50, max limit=100
+// ---------------------------------------------------------------------------
 
-        if (step.type === 'condition' && step.condition) {
-          await tx.workflowCondition.create({
-            data: {
-              stepId: workflowStep.id,
-              field: step.condition.field,
-              operator: step.condition.operator,
-              value: step.condition.value,
-            },
-          })
-        }
+export const GET = withAdminAuth(async (req: NextRequest) => {
+  try {
+    const { searchParams } = new URL(req.url)
 
-        if (step.type === 'action' && step.action) {
-          await tx.workflowAction.create({
-            data: {
-              stepId: workflowStep.id,
-              type: step.action.type,
-              config: step.action.config,
-            },
-          })
-        }
-      }
+    // Parse isActive — accept 'true' / 'false' strings only
+    const isActiveRaw = searchParams.get('isActive')
+    const isActive: boolean | undefined =
+      isActiveRaw === 'true' ? true : isActiveRaw === 'false' ? false : undefined
 
-      return tx.workflow.findUnique({
-        where: { id: created.id },
-        include: {
-          steps: {
-            orderBy: { order: 'asc' },
-            include: { condition: true, action: true },
-          },
-        },
-      })
+    // triggerType enum
+    const triggerTypeRaw = searchParams.get('triggerType') ?? undefined
+
+    // createdBy plain string filter
+    const createdBy = searchParams.get('createdBy') ?? undefined
+
+    // Pagination — defaults provided by WorkflowFiltersSchema but we parse here
+    // so malformed values fall back gracefully
+    const pageRaw = parseInt(searchParams.get('page') ?? '0', 10)
+    const page = isNaN(pageRaw) || pageRaw < 0 ? 0 : pageRaw
+
+    const limitRaw = parseInt(searchParams.get('limit') ?? '50', 10)
+    const limit = isNaN(limitRaw) ? 50 : Math.min(100, Math.max(1, limitRaw))
+
+    const { workflows, total } = await workflowService.listWorkflows({
+      isActive,
+      triggerType: triggerTypeRaw as 'MANUAL' | 'SCHEDULED' | 'EVENT_BASED' | undefined,
+      createdBy,
+      page,
+      limit,
     })
 
-    return NextResponse.json({ success: true, data: workflow }, { status: 201 })
+    return NextResponse.json({
+      success: true,
+      data: { workflows, total },
+      pagination: { page, limit, total },
+    })
   } catch (error) {
-    console.error('[POST /api/admin/workflows] Error:', error)
+    if (error instanceof ValidationError) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'Validation failed',
+            errors: error.errors,
+          },
+        },
+        { status: 400 },
+      )
+    }
+    console.error('[Workflow API]', error)
     return NextResponse.json(
-      { success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to create workflow.' } },
+      {
+        success: false,
+        error: { code: 'UNKNOWN', message: 'Internal server error' },
+      },
       { status: 500 },
     )
   }

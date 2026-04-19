@@ -7,7 +7,6 @@ import {
   Plus,
   Search,
   ShoppingCart,
-  Edit2,
   XCircle,
   Loader2,
   RefreshCw,
@@ -16,6 +15,8 @@ import {
   Clock,
   Ban,
   Truck,
+  FlaskConical,
+  AlertTriangle,
 } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
@@ -53,18 +54,19 @@ interface RawMaterial {
   type: string
 }
 
+interface Lab {
+  id: string
+  name: string
+  type: string
+}
+
 interface CreateFormData {
   supplierId: string
   materialId: string
   quantity: string
   deliveryDate: string
   cost: string
-}
-
-interface EditFormData {
-  status: PoStatus
-  deliveredAt: string
-  labId: string
+  paymentMethod: string
 }
 
 const EMPTY_CREATE_FORM: CreateFormData = {
@@ -73,14 +75,17 @@ const EMPTY_CREATE_FORM: CreateFormData = {
   quantity: '',
   deliveryDate: '',
   cost: '',
+  paymentMethod: '',
 }
 
-const STATUS_OPTIONS: { value: PoStatus; label: string }[] = [
-  { value: 'pending', label: 'Pending' },
-  { value: 'ordered', label: 'Ordered' },
-  { value: 'delivered', label: 'Delivered' },
-  { value: 'cancelled', label: 'Cancelled' },
+const PAYMENT_METHODS = [
+  { value: 'bank_transfer', label: 'Bank Transfer' },
+  { value: 'check', label: 'Check' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'credit', label: 'Credit / Net Terms' },
 ]
+
+const PAGE_SIZE = 20
 
 // ---------------------------------------------------------------------------
 // Helper: format date
@@ -92,14 +97,6 @@ function formatDate(iso: string) {
     month: '2-digit',
     year: 'numeric',
   })
-}
-
-// ---------------------------------------------------------------------------
-// Helper: toDateInputValue — converts ISO to "YYYY-MM-DD"
-// ---------------------------------------------------------------------------
-
-function toDateInput(iso: string): string {
-  return iso.slice(0, 10)
 }
 
 // ---------------------------------------------------------------------------
@@ -243,16 +240,15 @@ function CreatePurchaseOrderModal({
     }
   }
 
+  const selectedMaterial = materials.find((m) => m.id === form.materialId)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <h2 className="text-xl font-bold text-gray-900">New Purchase Order</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -324,9 +320,9 @@ function CreatePurchaseOrderModal({
                     errors.quantity ? 'border-red-400' : 'border-gray-300'
                   }`}
                 />
-                {form.materialId && (
+                {selectedMaterial && (
                   <span className="absolute right-3 inset-y-0 flex items-center text-gray-500 text-xs pointer-events-none">
-                    {materials.find((m) => m.id === form.materialId)?.unit ?? ''}
+                    {selectedMaterial.unit}
                   </span>
                 )}
               </div>
@@ -376,6 +372,26 @@ function CreatePurchaseOrderModal({
             )}
           </div>
 
+          {/* Payment Method */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Payment Method
+              <span className="text-gray-400 font-normal text-xs ml-1">(optional)</span>
+            </label>
+            <select
+              value={form.paymentMethod}
+              onChange={(e) => setField('paymentMethod', e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+            >
+              <option value="">Select payment method...</option>
+              {PAYMENT_METHODS.map((pm) => (
+                <option key={pm.value} value={pm.value}>
+                  {pm.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Actions */}
           <div className="flex gap-3 pt-2">
             <button
@@ -407,67 +423,42 @@ function CreatePurchaseOrderModal({
 }
 
 // ---------------------------------------------------------------------------
-// Edit Modal — status update focused
+// Receive Delivery Modal
 // ---------------------------------------------------------------------------
 
-interface EditModalProps {
+interface ReceiveDeliveryModalProps {
   order: PurchaseOrder
+  labs: Lab[]
   onClose: () => void
-  onSaved: () => void
+  onDelivered: () => void
 }
 
-function EditPurchaseOrderModal({ order, onClose, onSaved }: EditModalProps) {
+function ReceiveDeliveryModal({
+  order,
+  labs,
+  onClose,
+  onDelivered,
+}: ReceiveDeliveryModalProps) {
   const { success, error: toastError } = useToast()
-  const [form, setForm] = useState<EditFormData>({
-    status: order.status,
-    deliveredAt: order.deliveredAt ? toDateInput(order.deliveredAt) : '',
-    labId: '',
-  })
+  const [labId, setLabId] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [labError, setLabError] = useState('')
 
-  function setField<K extends keyof EditFormData>(key: K, value: EditFormData[K]) {
-    setForm((prev) => ({ ...prev, [key]: value }))
-    setErrors((prev) => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-  }
+  const selectedLab = labs.find((l) => l.id === labId)
+  const qty = Number(order.quantity)
+  const unit = order.material.unit
 
-  function validate(): boolean {
-    const e: Record<string, string> = {}
-
-    if (order.status === 'cancelled' && form.status !== 'cancelled') {
-      e.status = 'A cancelled order cannot be re-activated.'
+  const handleDeliver = async () => {
+    if (!labId) {
+      setLabError('Please select a lab to receive the stock.')
+      return
     }
-
-    if (form.status === 'delivered' && form.deliveredAt) {
-      const deliveredMs = new Date(form.deliveredAt).getTime()
-      if (isNaN(deliveredMs)) {
-        e.deliveredAt = 'Please enter a valid date.'
-      }
-    }
-
-    setErrors(e)
-    return Object.keys(e).length === 0
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validate()) return
-
+    setLabError('')
     setIsSaving(true)
     try {
-      const payload: Record<string, unknown> = { status: form.status }
-
-      if (form.status === 'delivered') {
-        if (form.deliveredAt) {
-          payload.deliveredAt = new Date(form.deliveredAt).toISOString()
-        }
-        if (form.labId) {
-          payload.labId = form.labId
-        }
+      const payload: Record<string, unknown> = {
+        status: 'delivered',
+        labId,
       }
 
       const res = await fetch(`/api/admin/purchase-orders/${order.id}`, {
@@ -480,23 +471,21 @@ function EditPurchaseOrderModal({ order, onClose, onSaved }: EditModalProps) {
 
       if (!res.ok || !json.success) {
         toastError({
-          title: 'Update Failed',
-          message: json.error?.message ?? 'Failed to update purchase order.',
+          title: 'Delivery Failed',
+          message: json.error?.message ?? 'Failed to mark order as delivered.',
         })
         return
       }
 
       success({
-        title: 'Order Updated',
-        message: `${order.poNumber} status changed to ${form.status}.`,
+        title: 'Delivery Received',
+        message: `Stock increased by ${qty.toLocaleString()} ${unit} in ${selectedLab!.name}.`,
       })
-      onSaved()
+      onDelivered()
     } finally {
       setIsSaving(false)
     }
   }
-
-  const isCancelled = order.status === 'cancelled'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -504,7 +493,7 @@ function EditPurchaseOrderModal({ order, onClose, onSaved }: EditModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200">
           <div>
-            <h2 className="text-xl font-bold text-gray-900">Update Order</h2>
+            <h2 className="text-xl font-bold text-gray-900">Receive Delivery</h2>
             <p className="text-sm text-gray-500 mt-0.5 font-mono">{order.poNumber}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
@@ -512,7 +501,7 @@ function EditPurchaseOrderModal({ order, onClose, onSaved }: EditModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+        <div className="p-6 space-y-5">
           {/* Order summary */}
           <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1.5">
             <div className="flex justify-between">
@@ -522,70 +511,65 @@ function EditPurchaseOrderModal({ order, onClose, onSaved }: EditModalProps) {
             <div className="flex justify-between">
               <span className="text-gray-500">Material</span>
               <span className="font-medium text-gray-900">
-                {order.material.name} ({order.material.unit})
+                {order.material.name}
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">Quantity</span>
-              <span className="font-medium text-gray-900">
-                {Number(order.quantity).toLocaleString()} {order.material.unit}
+              <span className="text-gray-500">Quantity to receive</span>
+              <span className="font-bold text-amber-700">
+                {qty.toLocaleString()} {unit}
               </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Delivery Date</span>
-              <span className="font-medium text-gray-900">{formatDate(order.deliveryDate)}</span>
             </div>
           </div>
 
-          {/* Status */}
+          {/* Lab selector */}
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Status <span className="text-red-500">*</span>
+              Destination Lab <span className="text-red-500">*</span>
             </label>
             <select
-              value={form.status}
-              onChange={(e) => setField('status', e.target.value as PoStatus)}
-              disabled={isCancelled}
-              className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:bg-gray-100 disabled:cursor-not-allowed ${
-                errors.status ? 'border-red-400' : 'border-gray-300'
+              value={labId}
+              onChange={(e) => {
+                setLabId(e.target.value)
+                setLabError('')
+              }}
+              className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                labError ? 'border-red-400' : 'border-gray-300'
               }`}
             >
-              {STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
+              <option value="">Select a lab...</option>
+              {labs.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name} — {l.type}
                 </option>
               ))}
             </select>
-            {errors.status && (
-              <p className="text-xs text-red-600 mt-1">{errors.status}</p>
-            )}
-            {isCancelled && (
-              <p className="text-xs text-gray-500 mt-1">
-                Cancelled orders cannot be re-activated.
-              </p>
+            {labError && (
+              <p className="text-xs text-red-600 mt-1">{labError}</p>
             )}
           </div>
 
-          {/* Delivered-at date (shown only when delivered is selected) */}
-          {form.status === 'delivered' && (
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Actual Delivery Date
-                <span className="text-gray-400 font-normal text-xs ml-1">(optional, defaults to today)</span>
-              </label>
-              <input
-                type="date"
-                value={form.deliveredAt}
-                onChange={(e) => setField('deliveredAt', e.target.value)}
-                className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                  errors.deliveredAt ? 'border-red-400' : 'border-gray-300'
-                }`}
-              />
-              {errors.deliveredAt && (
-                <p className="text-xs text-red-600 mt-1">{errors.deliveredAt}</p>
-              )}
-              <p className="text-xs text-gray-500 mt-1">
-                Stock will be automatically incremented in all labs tracking this material.
+          {/* Stock preview */}
+          {selectedLab ? (
+            <div className="flex items-start gap-3 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+              <PackageCheck className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+              <p className="text-sm text-green-800">
+                <span className="font-semibold">
+                  {qty.toLocaleString()} {unit}
+                </span>{' '}
+                will be added to{' '}
+                <span className="font-semibold">{selectedLab.name}</span> stock
+              </p>
+            </div>
+          ) : (
+            <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
+              <FlaskConical className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
+              <p className="text-sm text-blue-700">
+                Select a lab above to see where{' '}
+                <span className="font-semibold">
+                  {qty.toLocaleString()} {unit}
+                </span>{' '}
+                of <span className="font-semibold">{order.material.name}</span> will be added.
               </p>
             </div>
           )}
@@ -600,21 +584,24 @@ function EditPurchaseOrderModal({ order, onClose, onSaved }: EditModalProps) {
               Cancel
             </button>
             <button
-              type="submit"
-              disabled={isSaving || isCancelled}
-              className="flex-1 px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-semibold hover:bg-amber-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              onClick={handleDeliver}
+              disabled={isSaving}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {isSaving ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  Saving...
+                  Processing...
                 </>
               ) : (
-                'Save Changes'
+                <>
+                  <PackageCheck className="w-4 h-4" />
+                  Confirm Delivery
+                </>
               )}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   )
@@ -665,15 +652,30 @@ function CancelConfirmModal({ order, onClose, onConfirmed }: CancelConfirmModalP
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-2">Cancel Purchase Order</h2>
-        <p className="text-gray-600 mb-1">
+        {/* Warning icon + title */}
+        <div className="flex items-start gap-4 mb-4">
+          <div className="shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-red-600" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Cancel Purchase Order</h2>
+            <p className="text-sm text-gray-500 mt-0.5">This action cannot be undone.</p>
+          </div>
+        </div>
+
+        <p className="text-gray-600 text-sm mb-1">
           Are you sure you want to cancel{' '}
           <span className="font-bold text-gray-900 font-mono">{order.poNumber}</span>?
         </p>
         <p className="text-sm text-gray-500 mb-6">
-          Order for <span className="font-medium">{order.material.name}</span> from{' '}
-          <span className="font-medium">{order.supplier.name}</span>. This action cannot be undone.
+          Order for{' '}
+          <span className="font-medium text-gray-700">
+            {order.quantity.toLocaleString()} {order.material.unit}
+          </span>{' '}
+          of <span className="font-medium text-gray-700">{order.material.name}</span> from{' '}
+          <span className="font-medium text-gray-700">{order.supplier.name}</span>.
         </p>
+
         <div className="flex gap-3">
           <button
             onClick={onClose}
@@ -709,6 +711,8 @@ export default function AdminPurchaseOrdersPage() {
   const [orders, setOrders] = useState<PurchaseOrder[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
   const [materials, setMaterials] = useState<RawMaterial[]>([])
+  const [labs, setLabs] = useState<Lab[]>([])
+
   const [isLoading, setIsLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<PoStatus | 'all'>('all')
   const [search, setSearch] = useState('')
@@ -717,30 +721,35 @@ export default function AdminPurchaseOrdersPage() {
   const [skip, setSkip] = useState(0)
   const [total, setTotal] = useState(0)
   const [hasMore, setHasMore] = useState(false)
-  const PAGE_SIZE = 20
 
   // Modal state
   const [showCreateModal, setShowCreateModal] = useState(false)
-  const [editOrder, setEditOrder] = useState<PurchaseOrder | null>(null)
+  const [receiveOrder, setReceiveOrder] = useState<PurchaseOrder | null>(null)
   const [cancelOrder, setCancelOrder] = useState<PurchaseOrder | null>(null)
 
   const { error: toastError } = useToast()
 
   // ---------------------------------------------------------------------------
-  // Fetch reference data on mount
+  // Fetch reference data (suppliers, materials, labs) on mount
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
     const fetchRef = async () => {
       try {
-        const [supRes, matRes] = await Promise.all([
+        const [supRes, matRes, labRes] = await Promise.all([
           fetch('/api/admin/suppliers?take=100'),
           fetch('/api/admin/raw-materials?take=100'),
+          fetch('/api/admin/labs'),
         ])
-        const [supJson, matJson] = await Promise.all([supRes.json(), matRes.json()])
+        const [supJson, matJson, labJson] = await Promise.all([
+          supRes.json(),
+          matRes.json(),
+          labRes.json(),
+        ])
 
         if (supJson.success) setSuppliers(supJson.data ?? [])
         if (matJson.success) setMaterials(matJson.data ?? [])
+        if (labJson.success) setLabs(labJson.data ?? [])
       } catch {
         // non-blocking — dropdowns will be empty
       }
@@ -785,10 +794,11 @@ export default function AdminPurchaseOrdersPage() {
         setIsLoading(false)
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [skip, statusFilter, toastError],
   )
 
-  // Initial load and status filter reload
+  // Initial load and reload when status filter changes
   useEffect(() => {
     setOrders([])
     setSkip(0)
@@ -798,7 +808,13 @@ export default function AdminPurchaseOrdersPage() {
 
   const handleSaved = () => {
     setShowCreateModal(false)
-    setEditOrder(null)
+    setOrders([])
+    setSkip(0)
+    fetchOrders(true)
+  }
+
+  const handleDelivered = () => {
+    setReceiveOrder(null)
     setOrders([])
     setSkip(0)
     fetchOrders(true)
@@ -812,7 +828,7 @@ export default function AdminPurchaseOrdersPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // Client-side search filter (by poNumber or supplier/material name)
+  // Client-side search filter
   // ---------------------------------------------------------------------------
 
   const filteredOrders = search.trim()
@@ -879,21 +895,19 @@ export default function AdminPurchaseOrdersPage() {
 
         {/* Status filter pills */}
         <div className="flex items-center gap-2 flex-wrap">
-          {(['all', 'pending', 'ordered', 'delivered', 'cancelled'] as const).map(
-            (s) => (
-              <button
-                key={s}
-                onClick={() => setStatusFilter(s)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
-                  statusFilter === s
-                    ? 'bg-amber-600 text-white border-amber-600'
-                    : 'bg-white text-gray-700 border-gray-300 hover:border-amber-400'
-                }`}
-              >
-                {s.charAt(0).toUpperCase() + s.slice(1)}
-              </button>
-            ),
-          )}
+          {(['all', 'pending', 'ordered', 'delivered', 'cancelled'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                statusFilter === s
+                  ? 'bg-amber-600 text-white border-amber-600'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-amber-400'
+              }`}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -913,7 +927,7 @@ export default function AdminPurchaseOrdersPage() {
                   Material
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                  Quantity
+                  Qty
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                   Delivery Date
@@ -956,84 +970,95 @@ export default function AdminPurchaseOrdersPage() {
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50 transition-colors">
-                    {/* PO Number */}
-                    <td className="px-4 py-3">
-                      <span className="font-mono font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded text-xs tracking-wide">
-                        {order.poNumber}
-                      </span>
-                    </td>
+                filteredOrders.map((order) => {
+                  const canReceive =
+                    order.status === 'pending' || order.status === 'ordered'
+                  const canCancel =
+                    order.status !== 'delivered' && order.status !== 'cancelled'
 
-                    {/* Supplier */}
-                    <td className="px-4 py-3 text-gray-700 font-medium">
-                      {order.supplier.name}
-                    </td>
-
-                    {/* Material */}
-                    <td className="px-4 py-3">
-                      <span className="text-gray-900">{order.material.name}</span>
-                      <span className="text-gray-400 text-xs ml-1">({order.material.unit})</span>
-                    </td>
-
-                    {/* Quantity */}
-                    <td className="px-4 py-3 text-gray-900 font-medium">
-                      {Number(order.quantity).toLocaleString()}{' '}
-                      <span className="text-gray-400 text-xs">{order.material.unit}</span>
-                    </td>
-
-                    {/* Delivery Date */}
-                    <td className="px-4 py-3 text-gray-600 text-xs">
-                      <div>{formatDate(order.deliveryDate)}</div>
-                      {order.deliveredAt && (
-                        <div className="text-green-600 mt-0.5">
-                          Delivered: {formatDate(order.deliveredAt)}
-                        </div>
-                      )}
-                    </td>
-
-                    {/* Cost */}
-                    <td className="px-4 py-3">
-                      {order.cost !== null ? (
-                        <span className="font-semibold text-amber-700">
-                          {Number(order.cost).toFixed(2)} MAD
+                  return (
+                    <tr key={order.id} className="hover:bg-gray-50 transition-colors">
+                      {/* PO Number */}
+                      <td className="px-4 py-3">
+                        <span className="font-mono font-bold text-gray-900 bg-gray-100 px-2 py-0.5 rounded text-xs tracking-wide">
+                          {order.poNumber}
                         </span>
-                      ) : (
-                        <span className="text-gray-400 text-xs">—</span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Status */}
-                    <td className="px-4 py-3">
-                      <StatusBadge status={order.status} />
-                    </td>
+                      {/* Supplier */}
+                      <td className="px-4 py-3 text-gray-700 font-medium">
+                        {order.supplier.name}
+                      </td>
 
-                    {/* Actions */}
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setEditOrder(order)}
-                          disabled={order.status === 'cancelled'}
-                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Update status"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => setCancelOrder(order)}
-                          disabled={
-                            order.status === 'cancelled' ||
-                            order.status === 'delivered'
-                          }
-                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Cancel order"
-                        >
-                          <XCircle className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      {/* Material */}
+                      <td className="px-4 py-3">
+                        <span className="text-gray-900">{order.material.name}</span>
+                        <span className="text-gray-400 text-xs ml-1">
+                          ({order.material.unit})
+                        </span>
+                      </td>
+
+                      {/* Quantity */}
+                      <td className="px-4 py-3 text-gray-900 font-medium tabular-nums">
+                        {Number(order.quantity).toLocaleString()}{' '}
+                        <span className="text-gray-400 text-xs">{order.material.unit}</span>
+                      </td>
+
+                      {/* Delivery Date */}
+                      <td className="px-4 py-3 text-gray-600 text-xs">
+                        <div>{formatDate(order.deliveryDate)}</div>
+                        {order.deliveredAt && (
+                          <div className="text-green-600 mt-0.5">
+                            Delivered: {formatDate(order.deliveredAt)}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Cost */}
+                      <td className="px-4 py-3">
+                        {order.cost !== null ? (
+                          <span className="font-semibold text-amber-700">
+                            {Number(order.cost).toFixed(2)} MAD
+                          </span>
+                        ) : (
+                          <span className="text-gray-400 text-xs">—</span>
+                        )}
+                      </td>
+
+                      {/* Status */}
+                      <td className="px-4 py-3">
+                        <StatusBadge status={order.status} />
+                      </td>
+
+                      {/* Actions */}
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-end gap-1">
+                          {/* Receive Delivery button — only for pending/ordered */}
+                          {canReceive && (
+                            <button
+                              onClick={() => setReceiveOrder(order)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+                              title="Receive delivery"
+                            >
+                              <Truck className="w-3.5 h-3.5" />
+                              Receive
+                            </button>
+                          )}
+
+                          {/* Cancel button */}
+                          <button
+                            onClick={() => setCancelOrder(order)}
+                            disabled={!canCancel}
+                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                            title="Cancel order"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
@@ -1061,11 +1086,12 @@ export default function AdminPurchaseOrdersPage() {
         />
       )}
 
-      {editOrder && (
-        <EditPurchaseOrderModal
-          order={editOrder}
-          onClose={() => setEditOrder(null)}
-          onSaved={handleSaved}
+      {receiveOrder && (
+        <ReceiveDeliveryModal
+          order={receiveOrder}
+          labs={labs}
+          onClose={() => setReceiveOrder(null)}
+          onDelivered={handleDelivered}
         />
       )}
 
