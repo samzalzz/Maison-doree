@@ -168,7 +168,7 @@ function makePO(overrides: Record<string, unknown> = {}) {
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  jest.resetAllMocks()
 
   // Default: $transaction runs the callback immediately with mockTx
   mockTransaction.mockImplementation(async (fn: any) => fn(mockTx))
@@ -208,6 +208,26 @@ describe('suggestPurchaseOrder', () => {
     expect(createArg.data.labId).toBe(LAB_ID)
     expect(createArg.data.materialId).toBe(MATERIAL_ID)
     expect(createArg.data.supplierId).toBe(SUPPLIER_ID)
+  })
+
+  it('uses the supplierId from the first catalog entry returned by the DB (sorted by reliability)', async () => {
+    // The service issues findMany with orderBy reliabilityScore desc + take:1.
+    // The DB (mocked here) returns only the winning entry; we simulate that by
+    // returning a single catalog belonging to 'sup-2' (highest score).
+    const bestCatalog = makeCatalogEntry({
+      supplierId: 'sup-2',
+      supplier: { id: 'sup-2', name: 'Supplier Two', performanceMetric: { reliabilityScore: 92 } },
+    })
+    mockLab.findUnique.mockResolvedValueOnce(makeLab() as any)
+    mockMaterial.findUnique.mockResolvedValueOnce(makeMaterial() as any)
+    mockCatalog.findMany.mockResolvedValueOnce([bestCatalog] as any)
+    const created = makeSuggestion({ supplierId: 'sup-2' })
+    mockSuggestion.create.mockResolvedValueOnce(created as any)
+
+    await service.suggestPurchaseOrder(validInput)
+
+    const createCall = mockSuggestion.create.mock.calls[0]
+    expect(createCall[0].data.supplierId).toBe('sup-2') // Supplier selected by DB reliability sort
   })
 
   it('throws POError when lab does not exist', async () => {
@@ -332,6 +352,14 @@ describe('approveSuggestion', () => {
       service.approveSuggestion('ghost-id', { approvedBy: APPROVED_BY }),
     ).rejects.toBeInstanceOf(PONotFoundError)
 
+    expect(mockPO.create).not.toHaveBeenCalled()
+  })
+
+  it('throws POError when suggestion is already approved', async () => {
+    const suggestion = makeSuggestion({ status: 'APPROVED', approvedAt: new Date() })
+    mockSuggestion.findUnique.mockResolvedValueOnce(suggestion as any)
+
+    await expect(service.approveSuggestion('sugg-id', { approvedBy: 'user@test.com' })).rejects.toBeInstanceOf(POError)
     expect(mockPO.create).not.toHaveBeenCalled()
   })
 

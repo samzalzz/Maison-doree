@@ -111,7 +111,7 @@ function failedQC() {
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  jest.resetAllMocks()
 })
 
 // ============================================================================
@@ -241,6 +241,7 @@ describe('calculateSupplierMetrics — reliabilityScore', () => {
 
     const upsertArg = mockPerfMetric.upsert.mock.calls[0][0] as any
     // 80*0.4=32 + 90*0.4=36 + 50 = 118 → clamped to 100
+    expect(upsertArg.create.trend30Day).toBe('stable')
     expect(upsertArg.create.reliabilityScore).toBe(100)
   })
 
@@ -283,6 +284,32 @@ describe('calculateSupplierMetrics — reliabilityScore', () => {
 })
 
 // ============================================================================
+// calculateSupplierMetrics — zero-data edge case
+// ============================================================================
+
+describe('calculateSupplierMetrics — zero data', () => {
+  it('returns 0 for onTime and quality metrics when no POs or QC records exist', async () => {
+    // Formula: reliabilityScore = 0*0.4 + 0*0.4 + 50 (base) + 0 (stable trend) = 50
+    mockSupplier.findUnique.mockResolvedValueOnce({ id: SUPPLIER_ID } as any)
+    mockPO.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([])
+    mockQC.findMany.mockResolvedValueOnce([])
+    mockPerfMetric.upsert.mockResolvedValueOnce({
+      supplierId: SUPPLIER_ID,
+      onTimePercent: 0,
+      qualityPassRate: 0,
+      reliabilityScore: 50,
+    } as any)
+
+    await service.calculateSupplierMetrics(SUPPLIER_ID)
+
+    const upsertArg = mockPerfMetric.upsert.mock.calls[0][0] as any
+    expect(upsertArg.create.onTimePercent).toBe(0)
+    expect(upsertArg.create.qualityPassRate).toBe(0)
+    expect(upsertArg.create.reliabilityScore).toBe(50) // base 50, no deliveries or QC
+  })
+})
+
+// ============================================================================
 // calculateCategoryMetrics — per-category breakdown
 // ============================================================================
 
@@ -313,6 +340,7 @@ describe('calculateCategoryMetrics', () => {
     expect(upsertArg.create.reliabilityScore).toBe(67)
   })
 
+  // Note: This service throws plain Error, not a custom class, so we check the message text
   it('throws Error when supplier is not found', async () => {
     mockSupplier.findUnique.mockResolvedValueOnce(null)
 

@@ -60,7 +60,8 @@ jest.mock('next/link', () => {
 // ---------------------------------------------------------------------------
 
 import React from 'react'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import '@testing-library/jest-dom'
 
 import SupplierListPage from '@/app/(admin)/supplier/suppliers/page'
@@ -68,6 +69,16 @@ import SupplierDetailPage from '@/app/(admin)/supplier/suppliers/[id]/page'
 import POTrackingPage from '@/app/(admin)/supplier/purchase-orders/page'
 import PerformanceDashboardPage from '@/app/(admin)/supplier/performance/page'
 import InventoryReplenishmentPage from '@/app/(admin)/supplier/inventory-replenishment/page'
+
+// ---------------------------------------------------------------------------
+// Global setup — ensure fetch exists so jest.spyOn can wrap it
+// ---------------------------------------------------------------------------
+
+beforeAll(() => {
+  if (!global.fetch) {
+    global.fetch = jest.fn()
+  }
+})
 
 // ---------------------------------------------------------------------------
 // Shared helpers
@@ -302,7 +313,6 @@ const INVENTORY_RESPONSE = {
 describe('SupplierListPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    if (!global.fetch) global.fetch = jest.fn()
   })
 
   it('renders table with correct column headers', async () => {
@@ -311,11 +321,10 @@ describe('SupplierListPage', () => {
 
     await waitFor(() => expect(screen.getByRole('table')).toBeInTheDocument())
 
-    expect(screen.getByText('Supplier Name')).toBeInTheDocument()
-    expect(screen.getByText('Email')).toBeInTheDocument()
-    // "Status" appears in both the filter label and the table header
-    expect(screen.getAllByText('Status').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('Reliability Score')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /supplier name/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /email/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /status/i })).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: /reliability score/i })).toBeInTheDocument()
   })
 
   it('renders supplier data rows with name, status badge, and reliability score', async () => {
@@ -345,6 +354,7 @@ describe('SupplierListPage', () => {
   })
 
   it('changes status filter and triggers a new fetch', async () => {
+    const user = userEvent.setup()
     const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: true,
       json: async () => SUPPLIER_LIST_RESPONSE,
@@ -354,9 +364,7 @@ describe('SupplierListPage', () => {
     // Wait for initial fetch to complete
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1))
 
-    fireEvent.change(screen.getByLabelText(/status/i), {
-      target: { value: 'ACTIVE' },
-    })
+    await user.selectOptions(screen.getByLabelText(/status/i), 'ACTIVE')
 
     await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(2))
     const secondCall = fetchSpy.mock.calls[1][0] as string
@@ -371,7 +379,6 @@ describe('SupplierListPage', () => {
 describe('SupplierDetailPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    if (!global.fetch) global.fetch = jest.fn()
   })
 
   it('renders supplier name, status badge, and contact info card', async () => {
@@ -450,7 +457,6 @@ describe('SupplierDetailPage', () => {
 describe('POTrackingPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    if (!global.fetch) global.fetch = jest.fn()
   })
 
   it('renders page heading and three tab buttons', async () => {
@@ -500,6 +506,7 @@ describe('POTrackingPage', () => {
   })
 
   it('Active Orders tab shows POs with Mark Received button and highlights overdue rows', async () => {
+    const user = userEvent.setup()
     // Route all fetches based on URL to avoid ordering fragility
     jest.spyOn(global, 'fetch').mockImplementation((url: RequestInfo | URL) => {
       const urlStr = String(url)
@@ -518,7 +525,7 @@ describe('POTrackingPage', () => {
     render(<POTrackingPage />)
 
     // Switch to Active Orders tab
-    fireEvent.click(screen.getByRole('tab', { name: /active orders/i }))
+    await user.click(screen.getByRole('tab', { name: /active orders/i }))
 
     await waitFor(() => expect(screen.getByText('PO-2026-010')).toBeInTheDocument())
 
@@ -529,11 +536,14 @@ describe('POTrackingPage', () => {
     const markBtns = screen.getAllByRole('button', { name: /mark received/i })
     expect(markBtns.length).toBeGreaterThanOrEqual(1)
 
-    // Overdue row identified by data-testid set in the component
-    expect(screen.getByTestId('overdue-row')).toBeInTheDocument()
+    // Overdue row identified by bg-red-50 class (consistent with InventoryReplenishmentPage tests)
+    const rows = screen.getAllByRole('row')
+    const overdueRow = rows.find((row) => row.className.includes('bg-red-50'))
+    expect(overdueRow).toBeInTheDocument()
   })
 
   it('Delivery History tab shows completed delivery rows', async () => {
+    const user = userEvent.setup()
     jest.spyOn(global, 'fetch').mockImplementation((url: RequestInfo | URL) => {
       const urlStr = String(url)
       if (urlStr.includes('history')) {
@@ -556,7 +566,7 @@ describe('POTrackingPage', () => {
 
     render(<POTrackingPage />)
 
-    fireEvent.click(screen.getByRole('tab', { name: /delivery history/i }))
+    await user.click(screen.getByRole('tab', { name: /delivery history/i }))
 
     await waitFor(() => expect(screen.getByText('PO-2026-003')).toBeInTheDocument())
 
@@ -573,7 +583,6 @@ describe('POTrackingPage', () => {
 describe('PerformanceDashboardPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    if (!global.fetch) global.fetch = jest.fn()
   })
 
   it('renders portfolio metric cards with correct values', async () => {
@@ -628,7 +637,6 @@ describe('PerformanceDashboardPage', () => {
 describe('InventoryReplenishmentPage', () => {
   beforeEach(() => {
     jest.clearAllMocks()
-    if (!global.fetch) global.fetch = jest.fn()
   })
 
   it('renders page heading, lab name, and material rows', async () => {
@@ -663,6 +671,7 @@ describe('InventoryReplenishmentPage', () => {
   })
 
   it('renders Create Order button for each material row and it is clickable', async () => {
+    const user = userEvent.setup()
     mockFetchAlways(INVENTORY_RESPONSE)
     render(<InventoryReplenishmentPage />)
 
@@ -672,6 +681,6 @@ describe('InventoryReplenishmentPage', () => {
     expect(createOrderButtons.length).toBe(2)
 
     // Buttons are enabled — no error thrown on click
-    fireEvent.click(createOrderButtons[0])
+    await user.click(createOrderButtons[0])
   })
 })

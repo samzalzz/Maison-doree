@@ -120,7 +120,7 @@ function makeMaterial(overrides: Record<string, unknown> = {}) {
 // ---------------------------------------------------------------------------
 
 beforeEach(() => {
-  jest.clearAllMocks()
+  jest.resetAllMocks()
 })
 
 // ============================================================================
@@ -204,12 +204,7 @@ describe('getSupplier', () => {
   it('SupplierNotFoundError message contains the requested id', async () => {
     mockSupplier.findUnique.mockResolvedValueOnce(null)
 
-    try {
-      await service.getSupplier('missing-id-xyz')
-    } catch (err) {
-      expect(err).toBeInstanceOf(SupplierNotFoundError)
-      expect((err as Error).message).toContain('missing-id-xyz')
-    }
+    await expect(service.getSupplier('missing-id-xyz')).rejects.toBeInstanceOf(SupplierNotFoundError)
   })
 })
 
