@@ -120,6 +120,13 @@ const WORKER_TOKEN = {
 }
 
 // ---------------------------------------------------------------------------
+// Token cast helper – eliminates the verbose inline cast on every call site
+// ---------------------------------------------------------------------------
+
+type TokenType = ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never
+const asToken = (t: typeof ADMIN_TOKEN): TokenType => t as TokenType
+
+// ---------------------------------------------------------------------------
 // Data fixtures
 // ---------------------------------------------------------------------------
 
@@ -190,7 +197,7 @@ function makeRequest(
 beforeEach(() => {
   jest.clearAllMocks()
   mockGetToken.mockResolvedValue(
-    ADMIN_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+    asToken(ADMIN_TOKEN),
   )
 })
 
@@ -268,7 +275,7 @@ describe('POST /api/supplier/po-suggestions', () => {
 
   it('returns 403 when user is WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('POST', '/api/supplier/po-suggestions', {
@@ -358,7 +365,7 @@ describe('GET /api/supplier/po-suggestions', () => {
 
   it('returns 403 when user is WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('GET', '/api/supplier/po-suggestions')
@@ -462,7 +469,7 @@ describe('PATCH /api/supplier/po-suggestions/[id]/approve', () => {
 
   it('returns 403 when user is WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('PATCH', `/api/supplier/po-suggestions/${SUGGESTION_ID}/approve`, {})
@@ -547,7 +554,7 @@ describe('PATCH /api/supplier/po-suggestions/[id]/reject', () => {
 
   it('returns 403 when user is WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('PATCH', `/api/supplier/po-suggestions/${SUGGESTION_ID}/reject`, {
@@ -588,46 +595,20 @@ describe('GET /api/supplier/purchase-orders', () => {
     expect(mockService.listPurchaseOrders).toHaveBeenCalledTimes(1)
   })
 
-  it('passes status filter to the service', async () => {
+  it.each([
+    ['status', 'PENDING'],
+    ['supplierId', SUPPLIER_ID],
+    ['materialId', MATERIAL_ID],
+  ])('passes %s filter field to the service', async (fieldName, fieldValue) => {
     mockService.listPurchaseOrders.mockResolvedValueOnce([])
 
     const req = makeRequest('GET', '/api/supplier/purchase-orders', undefined, {
-      status: 'PENDING',
-      supplierId: SUPPLIER_ID,
-      materialId: MATERIAL_ID,
+      [fieldName]: fieldValue,
     })
     await listPurchaseOrders(req)
 
     const callArg = mockService.listPurchaseOrders.mock.calls[0][0]
-    expect(callArg.status).toBe('PENDING')
-  })
-
-  it('passes supplierId filter to the service', async () => {
-    mockService.listPurchaseOrders.mockResolvedValueOnce([])
-
-    const req = makeRequest('GET', '/api/supplier/purchase-orders', undefined, {
-      status: 'PENDING',
-      supplierId: SUPPLIER_ID,
-      materialId: MATERIAL_ID,
-    })
-    await listPurchaseOrders(req)
-
-    const callArg = mockService.listPurchaseOrders.mock.calls[0][0]
-    expect(callArg.supplierId).toBe(SUPPLIER_ID)
-  })
-
-  it('passes materialId filter to the service', async () => {
-    mockService.listPurchaseOrders.mockResolvedValueOnce([])
-
-    const req = makeRequest('GET', '/api/supplier/purchase-orders', undefined, {
-      status: 'PENDING',
-      supplierId: SUPPLIER_ID,
-      materialId: MATERIAL_ID,
-    })
-    await listPurchaseOrders(req)
-
-    const callArg = mockService.listPurchaseOrders.mock.calls[0][0]
-    expect(callArg.materialId).toBe(MATERIAL_ID)
+    expect(callArg).toEqual(expect.objectContaining({ [fieldName]: fieldValue }))
   })
 
   it('applies pagination from query params', async () => {
@@ -649,7 +630,7 @@ describe('GET /api/supplier/purchase-orders', () => {
 
   it('returns 403 when user is WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('GET', '/api/supplier/purchase-orders', undefined, {
@@ -787,7 +768,7 @@ describe('PATCH /api/supplier/purchase-orders/[poId]/receive', () => {
 
   it('returns 403 when user is WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('PATCH', `/api/supplier/purchase-orders/${PO_ID}/receive`, {})
@@ -816,7 +797,7 @@ describe('PATCH /api/supplier/purchase-orders/[poId]/receive', () => {
 describe('MANAGER role access', () => {
   it('MANAGER can create PO suggestions', async () => {
     mockGetToken.mockResolvedValueOnce(
-      MANAGER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(MANAGER_TOKEN),
     )
     mockService.suggestPurchaseOrder.mockResolvedValueOnce(makeSuggestion())
 
@@ -833,7 +814,7 @@ describe('MANAGER role access', () => {
 
   it('MANAGER can list pending suggestions', async () => {
     mockGetToken.mockResolvedValueOnce(
-      MANAGER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(MANAGER_TOKEN),
     )
     mockService.getPendingSuggestions.mockResolvedValueOnce([])
 
@@ -845,7 +826,7 @@ describe('MANAGER role access', () => {
 
   it('MANAGER can approve suggestions', async () => {
     mockGetToken.mockResolvedValueOnce(
-      MANAGER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(MANAGER_TOKEN),
     )
     mockService.approveSuggestion.mockResolvedValueOnce(makePurchaseOrder())
 

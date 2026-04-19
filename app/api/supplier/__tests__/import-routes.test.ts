@@ -141,13 +141,11 @@ function makeImportCatalogRequest(csvContent: string, fileName = 'catalog.csv'):
   })
 }
 
-function makeRequestWithoutFile(): NextRequest {
-  const formData = new FormData()
-  // no 'file' field appended
-
-  return new NextRequest('http://localhost/api/supplier/import/suppliers', {
+function makeRequestWithoutFile(url: string): NextRequest {
+  const form = new FormData()
+  return new NextRequest(url, {
     method: 'POST',
-    body: formData,
+    body: form,
   })
 }
 
@@ -201,7 +199,9 @@ describe('POST /api/supplier/import/suppliers – valid data', () => {
       'Supplier Beta,beta@test.com,Fes',
     ].join('\n')
 
-    mockSupplierFindFirst.mockResolvedValue(null)  // neither is a duplicate
+    mockSupplierFindFirst
+      .mockResolvedValueOnce(null)  // Supplier Alpha: not a duplicate
+      .mockResolvedValueOnce(null)  // Supplier Beta: not a duplicate
     mockSupplierCreate
       .mockResolvedValueOnce({ id: 'id1', name: 'Supplier Alpha', status: 'ACTIVE' })
       .mockResolvedValueOnce({ id: 'id2', name: 'Supplier Beta', status: 'ACTIVE' })
@@ -247,7 +247,7 @@ describe('POST /api/supplier/import/suppliers – error handling', () => {
 
 describe('POST /api/supplier/import/suppliers – missing file', () => {
   it('returns 400 VALIDATION_ERROR when no file is attached', async () => {
-    const req = makeRequestWithoutFile()
+    const req = makeRequestWithoutFile('http://localhost/api/supplier/import/suppliers')
     const res = await importSuppliers(req)
     const json = await res.json()
 
@@ -474,11 +474,15 @@ describe('POST /api/supplier/import/catalogs – valid data', () => {
       `${SUPPLIER_ID},${MATERIAL_ID_2},8.50,100,3`,
     ].join('\n')
 
-    mockSupplierFindUnique.mockResolvedValue({ id: SUPPLIER_ID })
+    mockSupplierFindUnique
+      .mockResolvedValueOnce({ id: SUPPLIER_ID })
+      .mockResolvedValueOnce({ id: SUPPLIER_ID })
     mockMaterialFindUnique
       .mockResolvedValueOnce({ id: MATERIAL_ID })
       .mockResolvedValueOnce({ id: MATERIAL_ID_2 })
-    mockCatalogFindUnique.mockResolvedValue(null)
+    mockCatalogFindUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
     mockCatalogCreate
       .mockResolvedValueOnce({ id: 'cat1' })
       .mockResolvedValueOnce({ id: 'cat2' })
@@ -499,12 +503,7 @@ describe('POST /api/supplier/import/catalogs – valid data', () => {
 
 describe('POST /api/supplier/import/catalogs – missing file', () => {
   it('returns 400 VALIDATION_ERROR when no file is attached', async () => {
-    const formData = new FormData()
-    const req = new NextRequest('http://localhost/api/supplier/import/catalogs', {
-      method: 'POST',
-      body: formData,
-    })
-
+    const req = makeRequestWithoutFile('http://localhost/api/supplier/import/catalogs')
     const res = await importCatalogs(req)
     const json = await res.json()
 

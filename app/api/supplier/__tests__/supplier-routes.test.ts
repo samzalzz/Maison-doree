@@ -143,6 +143,13 @@ const WORKER_TOKEN = {
 }
 
 // ---------------------------------------------------------------------------
+// Token cast helper – eliminates the verbose inline cast on every call site
+// ---------------------------------------------------------------------------
+
+type TokenType = ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never
+const asToken = (t: typeof ADMIN_TOKEN): TokenType => t as TokenType
+
+// ---------------------------------------------------------------------------
 // Data fixtures
 // ---------------------------------------------------------------------------
 
@@ -212,7 +219,7 @@ beforeEach(() => {
   jest.clearAllMocks()
   // Default: authenticated as ADMIN
   mockGetToken.mockResolvedValue(
-    ADMIN_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+    asToken(ADMIN_TOKEN),
   )
 })
 
@@ -268,7 +275,7 @@ describe('POST /api/supplier/suppliers', () => {
 
   it('returns 403 Unauthorized when user is a WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('POST', '/api/supplier/suppliers', {
@@ -381,7 +388,7 @@ describe('GET /api/supplier/suppliers', () => {
 
   it('returns 403 when user is a WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('GET', '/api/supplier/suppliers', undefined, {
@@ -453,7 +460,7 @@ describe('GET /api/supplier/suppliers/[id]', () => {
 
   it('returns 403 when user role is WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('GET', `/api/supplier/suppliers/${SUPPLIER_ID}`)
@@ -527,7 +534,7 @@ describe('PATCH /api/supplier/suppliers/[id]', () => {
 
   it('MANAGER can update a supplier', async () => {
     mockGetToken.mockResolvedValueOnce(
-      MANAGER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(MANAGER_TOKEN),
     )
     const updated = makeSupplier({ notes: 'Trusted partner' })
     mockService.updateSupplier.mockResolvedValueOnce(updated)
@@ -536,8 +543,11 @@ describe('PATCH /api/supplier/suppliers/[id]', () => {
       notes: 'Trusted partner',
     })
     const res = await updateSupplier(req, { params: { id: SUPPLIER_ID } })
+    const json = await res.json()
 
     expect(res.status).toBe(200)
+    expect(json.success).toBe(true)
+    expect(json.data).toBeDefined()
   })
 })
 
@@ -572,7 +582,7 @@ describe('DELETE /api/supplier/suppliers/[id]', () => {
 
   it('returns 403 when user is MANAGER (ADMIN only endpoint)', async () => {
     mockGetToken.mockResolvedValueOnce(
-      MANAGER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(MANAGER_TOKEN),
     )
 
     const req = makeRequest('DELETE', `/api/supplier/suppliers/${SUPPLIER_ID}`)
@@ -727,7 +737,7 @@ describe('GET /api/supplier/catalogs', () => {
 
   it('returns 403 when user is a WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('GET', '/api/supplier/catalogs')
@@ -786,7 +796,7 @@ describe('PATCH /api/supplier/catalogs/[catalogId]', () => {
     expect(mockService.updateCatalogEntry).not.toHaveBeenCalled()
   })
 
-  it('returns 500 on service error (catalog not found)', async () => {
+  it('returns 500 when service throws unexpected error', async () => {
     mockService.updateCatalogEntry.mockRejectedValueOnce(new Error('Record not found'))
 
     const req = makeRequest('PATCH', `/api/supplier/catalogs/${CATALOG_ID}`, {
@@ -801,7 +811,7 @@ describe('PATCH /api/supplier/catalogs/[catalogId]', () => {
 
   it('returns 403 when user is WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('PATCH', `/api/supplier/catalogs/${CATALOG_ID}`, {
@@ -845,7 +855,7 @@ describe('DELETE /api/supplier/catalogs/[catalogId]', () => {
 
   it('returns 403 when user is WORKER', async () => {
     mockGetToken.mockResolvedValueOnce(
-      WORKER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(WORKER_TOKEN),
     )
 
     const req = makeRequest('DELETE', `/api/supplier/catalogs/${CATALOG_ID}`)
@@ -863,14 +873,17 @@ describe('DELETE /api/supplier/catalogs/[catalogId]', () => {
 describe('Auth and response shape contracts', () => {
   it('MANAGER can create a supplier', async () => {
     mockGetToken.mockResolvedValueOnce(
-      MANAGER_TOKEN as ReturnType<typeof mockGetToken> extends Promise<infer T> ? T : never,
+      asToken(MANAGER_TOKEN),
     )
     mockService.createSupplier.mockResolvedValueOnce(makeSupplier())
 
     const req = makeRequest('POST', '/api/supplier/suppliers', { name: 'Supplier' })
     const res = await createSupplier(req)
+    const json = await res.json()
 
     expect(res.status).toBe(200)
+    expect(json.success).toBe(true)
+    expect(json.data).toBeDefined()
   })
 
   it('success responses always include success:true and data', async () => {
