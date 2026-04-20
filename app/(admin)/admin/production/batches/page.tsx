@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useToast } from '@/lib/hooks/useToast'
 import { LoadMoreButton } from '@/components/ui/LoadMoreButton'
