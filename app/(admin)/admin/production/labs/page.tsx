@@ -21,56 +21,24 @@ import {
   Package,
   Activity,
 } from 'lucide-react'
+import {
+  LabType,
+  LabWithCount,
+  Machine,
+  RawMaterial,
+  LabFormData,
+} from '@/lib/types-production'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-type LabType = 'PREPARATION' | 'ASSEMBLY' | 'FINISHING'
+// Local type aliases for convenience
+type Lab = LabWithCount
 
-interface LabStockSummary {
-  totalMaterials: number
-  lowStockCount: number
-}
+type StockMaterial = RawMaterial
 
-interface LabCount {
-  employees: number
-  machines: number
-  batches: number
-}
-
-interface Lab {
-  id: string
-  name: string
-  type: LabType
-  capacity: number
-  createdAt: string
-  updatedAt: string
-  stockSummary: LabStockSummary
-  _count: LabCount
-}
-
-interface Machine {
-  id: string
-  labId: string
-  name: string
-  type: string
-  batchCapacity: number
-  cycleTimeMinutes: number
-  available: boolean
-  createdAt: string
-  lab: { id: string; name: string }
-}
-
-interface StockMaterial {
-  id: string
-  name: string
-  type: string
-  unit: string
-  isIntermediate: boolean
-}
-
-interface StockEntry {
+type StockEntry = {
   id: string
   labId: string
   materialId: string
@@ -78,12 +46,6 @@ interface StockEntry {
   minThreshold: string | number
   lastUpdated: string
   material: StockMaterial
-}
-
-interface LabFormData {
-  name: string
-  type: LabType | ''
-  capacity: string
 }
 
 const EMPTY_FORM: LabFormData = {

@@ -466,3 +466,72 @@ export type BatchValidationError = {
   }>;
   suggestions?: string[];
 };
+
+// ============================================================================
+// UI COMPONENT TYPES
+// ============================================================================
+
+// Stock Management Page
+export type LabStockSummary = {
+  totalMaterials: number;
+  lowStockCount: number;
+};
+
+export type LabCount = {
+  employees: number;
+  machines: number;
+  batches: number;
+};
+
+/**
+ * Complete Lab with all relations for lab management pages
+ */
+export type LabWithCount = ProductionLab & {
+  stockSummary: LabStockSummary;
+  _count: LabCount;
+};
+
+/**
+ * Lab with stock entries for stock management page
+ */
+export type LabWithStock = {
+  lab: ProductionLab;
+  stock: (LabStock & {
+    material: RawMaterial;
+  })[];
+  lowStockCount: number;
+};
+
+// Form Data Types
+export type LabFormData = {
+  name: string;
+  type: LabType | '';
+  capacity: string;
+};
+
+// Component Prop Types
+export type LabFormModalProps = {
+  initial?: LabWithCount | null;
+  onClose: () => void;
+  onSaved: () => void;
+};
+
+export type DeleteConfirmModalProps = {
+  lab: LabWithCount;
+  onClose: () => void;
+  onConfirmed: () => void;
+};
+
+export type StockAdjustModalProps = {
+  labId: string;
+  labName: string;
+  stock: LabStock & { material: RawMaterial };
+  onClose: () => void;
+  onSaved: () => void;
+};
+
+export type LabStockSectionProps = {
+  labWithStock: LabWithStock;
+  onRefresh: () => void;
+  onAdjustStock: (stock: LabStock & { material: RawMaterial }) => void;
+};

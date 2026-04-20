@@ -16,20 +16,15 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react'
+import {
+  RawMaterial,
+  LabWithStock,
+  StockAdjustModalProps,
+  LabStockSectionProps,
+} from '@/lib/types-production'
 
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface RawMaterial {
-  id: string
-  name: string
-  type: string
-  unit: string
-  isIntermediate: boolean
-}
-
-interface StockEntry {
+// Local helper types
+type StockEntry = {
   id: string
   labId: string
   materialId: string
@@ -39,17 +34,11 @@ interface StockEntry {
   material: RawMaterial
 }
 
-interface Lab {
+type Lab = {
   id: string
   name: string
   type: string
   capacity: number
-}
-
-interface LabWithStock {
-  lab: Lab
-  stock: StockEntry[]
-  lowStockCount: number
 }
 
 // ---------------------------------------------------------------------------
@@ -64,14 +53,6 @@ function toNumber(val: string | number): number {
 // ---------------------------------------------------------------------------
 // Stock Adjustment Modal
 // ---------------------------------------------------------------------------
-
-interface StockAdjustModalProps {
-  labId: string
-  labName: string
-  stock: StockEntry
-  onClose: () => void
-  onSaved: () => void
-}
 
 function StockAdjustModal({
   labId,
@@ -294,12 +275,6 @@ function StockAdjustModal({
 // ---------------------------------------------------------------------------
 // Lab Stock Section
 // ---------------------------------------------------------------------------
-
-interface LabStockSectionProps {
-  labWithStock: LabWithStock
-  onRefresh: () => void
-  onAdjustStock: (stock: StockEntry) => void
-}
 
 function LabStockSection({
   labWithStock,
