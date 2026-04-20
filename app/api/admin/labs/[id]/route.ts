@@ -72,6 +72,70 @@ export const GET = withAdminAuth(
 // inconsistencies with existing batch records.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// DELETE /api/admin/labs/[id]  (admin only)
+// ---------------------------------------------------------------------------
+// Permanently deletes a lab. Refuses deletion if the lab has active batches
+// (status PLANNED or IN_PROGRESS) to prevent data inconsistencies.
+// ---------------------------------------------------------------------------
+
+export const DELETE = withAdminAuth(
+  async (_req: NextRequest, { params }) => {
+    try {
+      const { id } = params as { id: string }
+
+      const lab = await prisma.productionLab.findUnique({
+        where: { id },
+        include: {
+          _count: {
+            select: {
+              batches: {
+                where: { status: { in: ['PLANNED', 'IN_PROGRESS'] } },
+              },
+            },
+          },
+        },
+      })
+
+      if (!lab) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: { code: 'NOT_FOUND', message: `Lab '${id}' was not found.` },
+          },
+          { status: 404 },
+        )
+      }
+
+      if (lab._count.batches > 0) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'CONFLICT',
+              message: `Cannot delete lab "${lab.name}" because it has ${lab._count.batches} active batch(es). Complete or reassign all batches first.`,
+            },
+          },
+          { status: 409 },
+        )
+      }
+
+      await prisma.productionLab.delete({ where: { id } })
+
+      return NextResponse.json({ success: true, data: { id } })
+    } catch (error) {
+      console.error('[DELETE /api/admin/labs/[id]] Error:', error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'INTERNAL_ERROR', message: 'Failed to delete lab.' },
+        },
+        { status: 500 },
+      )
+    }
+  },
+)
+
 export const PATCH = withAdminAuth(
   async (req: NextRequest, { params }) => {
     try {
