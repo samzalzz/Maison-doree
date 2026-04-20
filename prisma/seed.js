@@ -264,35 +264,55 @@ async function main() {
     }
   }
 
-  // Suppliers
+  // Suppliers with new fields
   const suppliers = [
     {
       name: 'Grain Supplier Morocco',
       email: 'contact@grainsupply.ma',
       phone: '+212612345600',
+      address: '123 Rue du Commerce, Casablanca',
+      city: 'Casablanca',
+      contactPerson: 'Hassan Bennani',
+      status: 'ACTIVE',
       leadTimeDays: 3,
       categories: ['Flour', 'Baking Powder', 'Salt'],
+      notes: 'Reliable supplier, volume discounts available',
     },
     {
       name: 'Sweet Suppliers Inc',
       email: 'sales@sweetsupply.com',
       phone: '+212712345601',
+      address: '456 Avenue Palmyra, Marrakech',
+      city: 'Marrakech',
+      contactPerson: 'Fatima Aziz',
+      status: 'ACTIVE',
       leadTimeDays: 5,
       categories: ['Sugar', 'Vanilla Extract', 'Dark Chocolate'],
+      notes: 'Premium quality ingredients, minimum order 50kg',
     },
     {
       name: 'Dairy Fresh Foods',
       email: 'orders@dairyfresh.ma',
       phone: '+212812345602',
+      address: '789 Boulevard Mohammed VI, Fez',
+      city: 'Fez',
+      contactPerson: 'Ali Hammouche',
+      status: 'ACTIVE',
       leadTimeDays: 2,
       categories: ['Butter', 'Eggs', 'Heavy Cream'],
+      notes: 'Fresh daily deliveries, best for dairy products',
     },
     {
       name: 'Fresh Produce Co',
       email: 'wholesale@freshproduce.ma',
       phone: '+212612345603',
+      address: '321 Rue Safi, Marrakech',
+      city: 'Marrakech',
+      contactPerson: 'Nadia Benjelloun',
+      status: 'ACTIVE',
       leadTimeDays: 1,
       categories: ['Strawberries', 'Fruits'],
+      notes: 'Same-day delivery available, seasonal products',
     },
   ]
 
@@ -310,48 +330,47 @@ async function main() {
     }
   }
 
-  // Purchase Orders
-  const purchaseOrders = [
-    {
-      poNumber: `PO-${Date.now()}-001`,
-      supplierId: createdSuppliers[0]?.id,
-      materialId: createdMaterials[0]?.id,
-      quantity: 100,
-      deliveryDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-      status: 'pending',
-      cost: 5000,
-    },
-    {
-      poNumber: `PO-${Date.now()}-002`,
-      supplierId: createdSuppliers[1]?.id,
-      materialId: createdMaterials[1]?.id,
-      quantity: 50,
-      deliveryDate: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
-      status: 'pending',
-      cost: 3000,
-    },
-    {
-      poNumber: `PO-${Date.now()}-003`,
-      supplierId: createdSuppliers[2]?.id,
-      materialId: createdMaterials[2]?.id,
-      quantity: 30,
-      deliveryDate: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000),
-      status: 'ordered',
-      cost: 4500,
-    },
+  // Supplier Catalog Entries (pricing and lead times)
+  const catalogEntries = [
+    // Grain Supplier Morocco
+    { supplierId: createdSuppliers[0]?.id, materialId: createdMaterials[0]?.id, unitPrice: 50, minOrderQty: 10, leadTimeDays: 3 }, // Flour
+    { supplierId: createdSuppliers[0]?.id, materialId: createdMaterials[5]?.id, unitPrice: 30, minOrderQty: 5, leadTimeDays: 3 }, // Baking Powder
+    { supplierId: createdSuppliers[0]?.id, materialId: createdMaterials[6]?.id, unitPrice: 15, minOrderQty: 2, leadTimeDays: 3 }, // Salt
+    // Sweet Suppliers Inc
+    { supplierId: createdSuppliers[1]?.id, materialId: createdMaterials[1]?.id, unitPrice: 60, minOrderQty: 25, leadTimeDays: 5 }, // Sugar
+    { supplierId: createdSuppliers[1]?.id, materialId: createdMaterials[4]?.id, unitPrice: 80, minOrderQty: 1, leadTimeDays: 5 }, // Vanilla Extract
+    { supplierId: createdSuppliers[1]?.id, materialId: createdMaterials[7]?.id, unitPrice: 120, minOrderQty: 5, leadTimeDays: 5 }, // Dark Chocolate
+    // Dairy Fresh Foods
+    { supplierId: createdSuppliers[2]?.id, materialId: createdMaterials[2]?.id, unitPrice: 90, minOrderQty: 5, leadTimeDays: 2 }, // Butter
+    { supplierId: createdSuppliers[2]?.id, materialId: createdMaterials[3]?.id, unitPrice: 0.5, minOrderQty: 60, leadTimeDays: 1 }, // Eggs
+    { supplierId: createdSuppliers[2]?.id, materialId: createdMaterials[9]?.id, unitPrice: 25, minOrderQty: 5, leadTimeDays: 2 }, // Heavy Cream
+    // Fresh Produce Co
+    { supplierId: createdSuppliers[3]?.id, materialId: createdMaterials[8]?.id, unitPrice: 40, minOrderQty: 5, leadTimeDays: 1 }, // Strawberries
   ]
 
-  for (const po of purchaseOrders) {
-    if (po.supplierId && po.materialId) {
-      const existing = await prisma.purchaseOrder.findFirst({
-        where: { poNumber: po.poNumber },
+  for (const entry of catalogEntries) {
+    if (entry.supplierId && entry.materialId) {
+      const existing = await prisma.supplierCatalog.findUnique({
+        where: { supplierId_materialId: { supplierId: entry.supplierId, materialId: entry.materialId } },
       })
       if (!existing) {
-        await prisma.purchaseOrder.create({ data: po })
-        console.log(`  ✓ Created purchase order: ${po.poNumber}`)
+        await prisma.supplierCatalog.create({
+          data: {
+            supplierId: entry.supplierId,
+            materialId: entry.materialId,
+            unitPrice: entry.unitPrice,
+            minOrderQty: entry.minOrderQty,
+            leadTimeDays: entry.leadTimeDays,
+            isActive: true,
+          },
+        })
+        console.log(`  ✓ Created catalog entry: Supplier ${entry.supplierId} → Material ${entry.materialId}`)
       }
     }
   }
+
+  // Purchase Orders (skipped for now due to schema differences)
+  // Will be created through the API once suppliers are set up
 
   const totalUsers = await prisma.user.count()
   const customerCount = await prisma.user.count({ where: { role: 'CUSTOMER' } })
