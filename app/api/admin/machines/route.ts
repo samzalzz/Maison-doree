@@ -21,10 +21,10 @@ export const GET = withAdminAuth(async (req: NextRequest) => {
     const take = Math.min(Math.max(rawTake, 1), 100)
     const labIdFilter = searchParams.get('labId') ?? undefined
 
-    const where = labIdFilter ? { labId: labIdFilter } : undefined
+    const where = labIdFilter ? { labId: labIdFilter } : {}
 
     const machines = await prisma.machine.findMany({
-      where,
+      ...(Object.keys(where).length > 0 ? { where } : {}),
       take: take + 1,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       orderBy: { createdAt: 'desc' },
