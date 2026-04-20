@@ -11,7 +11,10 @@ export const CreateSupplierSchema = z.object({
   address: z.string().optional(),
   city: z.string().optional(),
   contactPerson: z.string().optional(),
-  categories: z.array(z.string()).default([]),
+  categories: z.union([
+    z.array(z.string()),
+    z.string().transform(s => s.split(',').map(c => c.trim()).filter(c => c.length > 0))
+  ]).default([]),
 })
 
 export const UpdateSupplierSchema = z.object({
