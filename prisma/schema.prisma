@@ -19,6 +19,8 @@ enum Role {
   CUSTOMER
   ADMIN
   DRIVER
+  WORKER
+  MANAGER
 }
 
 enum OrderStatus {
