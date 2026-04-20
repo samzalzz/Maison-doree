@@ -47,15 +47,24 @@ const navSections: NavSection[] = [
   {
     title: 'Production',
     items: [
-      { label: 'Production',  href: '/admin/production/dashboard',  icon: '📊' },
-      { label: 'Forecast',    href: '/admin/production/forecast',   icon: '📅' },
-      { label: 'Workflows',   href: '/admin/production/workflows',  icon: '⚙️' },
+      { label: 'Dashboard',  href: '/admin/production/dashboard',  icon: '📊' },
+      { label: 'Batches',    href: '/admin/production/batches',    icon: '📋' },
+      { label: 'Stock',      href: '/admin/production/stock',      icon: '📦' },
+      { label: 'Forecast',   href: '/admin/production/forecast',   icon: '📅' },
+      { label: 'Workflows',  href: '/admin/production/workflows',  icon: '⚙️' },
     ],
   },
   {
     title: 'Supplier Management',
     items: [
       { label: 'Suppliers', href: '/supplier/suppliers', icon: '🚚' },
+    ],
+  },
+  {
+    title: 'Settings',
+    items: [
+      { label: 'Users',  href: '/admin/settings/users',  icon: '👥' },
+      { label: 'Roles',  href: '/admin/settings/roles',  icon: '🔐' },
     ],
   },
 ]
