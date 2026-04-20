@@ -31,7 +31,9 @@ export default function LoginPage() {
           <RegisteredBanner />
         </Suspense>
 
-        <LoginForm />
+        <Suspense>
+          <LoginForm />
+        </Suspense>
 
         <p className="text-center mt-6 text-sm text-gray-600">
           Pas encore de compte?{' '}

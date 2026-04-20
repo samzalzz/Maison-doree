@@ -2,11 +2,14 @@
 
 import { useState } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { useSession } from 'next-auth/react'
 import { LoginSchema, type LoginInput } from '@/lib/validators'
 
 export function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const { data: session, status } = useSession()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState<LoginInput>({
@@ -51,7 +54,32 @@ export function LoginForm() {
       return
     }
 
-    router.push('/products')
+    // Get the updated session to check user role
+    const newSession = await fetch('/api/auth/session').then((res) =>
+      res.json(),
+    )
+
+    // Redirect based on user role
+    const role = newSession?.user?.role
+    let redirectUrl = '/client/shop' // Default for CUSTOMER
+
+    if (role === 'ADMIN') {
+      redirectUrl = '/admin/production/dashboard'
+    } else if (role === 'MANAGER') {
+      redirectUrl = '/admin/production/manager'
+    } else if (role === 'WORKER') {
+      redirectUrl = '/worker/dashboard'
+    } else if (role === 'DRIVER') {
+      redirectUrl = '/driver/dashboard'
+    }
+
+    // Check for callbackUrl in search params (standard NextAuth flow)
+    const callbackUrl = searchParams?.get('callbackUrl')
+    if (callbackUrl && callbackUrl.startsWith('/')) {
+      redirectUrl = callbackUrl
+    }
+
+    router.push(redirectUrl)
     router.refresh()
   }
 

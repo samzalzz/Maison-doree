@@ -59,6 +59,32 @@ async function main() {
         zipCode: '30000',
       },
     },
+    {
+      email: 'worker@test.com',
+      password: 'WorkerPass123!',
+      role: 'WORKER',
+      profile: {
+        firstName: 'Hassan',
+        lastName: 'Oukrim',
+        phone: '+212612345682',
+        address: '321 Rue Sidi Youssef',
+        city: 'Marrakech',
+        zipCode: '40000',
+      },
+    },
+    {
+      email: 'manager@test.com',
+      password: 'ManagerPass123!',
+      role: 'MANAGER',
+      profile: {
+        firstName: 'Nadia',
+        lastName: 'Bennani',
+        phone: '+212612345683',
+        address: '654 Rue El Mansour',
+        city: 'Marrakech',
+        zipCode: '40000',
+      },
+    },
   ]
 
   for (const userData of users) {
