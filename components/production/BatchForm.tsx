@@ -1,6 +1,8 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
+import { useToast } from '@/lib/hooks/useToast'
+import { X, Loader2, AlertTriangle, CheckCircle, AlertCircle } from 'lucide-react'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -13,31 +15,51 @@ interface Lab {
   capacity: number
 }
 
-interface Recipe {
+interface RecipeSummary {
   id: string
   name: string
   laborMinutes: number
   _count: { ingredients: number; batches: number }
 }
 
-interface Machine {
+interface MaterialInfo {
   id: string
   name: string
   type: string
-  available: boolean
+  unit: string
+  isIntermediate: boolean
 }
 
-interface Employee {
-  id: string
-  name: string
-  role: string
+interface LabStockEntry {
+  materialId: string
+  quantity: string | number
+  material: MaterialInfo
 }
 
-interface LabDetail {
+interface RecipeIngredient {
+  id: string
+  rawMaterialId: string | null
+  intermediateProductId: string | null
+  quantity: string | number
+  unit: string
+  rawMaterial: { id: string; name: string; type: string; unit: string } | null
+  intermediateProduct: { id: string; name: string; type: string; unit: string } | null
+}
+
+interface RecipeDetail {
   id: string
   name: string
-  machines: Machine[]
-  employees: Employee[]
+  laborMinutes: number
+  ingredients: RecipeIngredient[]
+}
+
+interface MaterialRequirement {
+  materialId: string
+  materialName: string
+  unit: string
+  required: number
+  available: number
+  sufficient: boolean
 }
 
 interface FormValues {
@@ -45,9 +67,6 @@ interface FormValues {
   recipeId: string
   quantity: string
   plannedStartTime: string
-  estimatedCompletionTime: string
-  machineId: string
-  employeeId: string
 }
 
 interface ApiError {
@@ -62,13 +81,25 @@ interface ApiError {
   }
 }
 
-interface BatchFormProps {
-  onSuccess?: (batchNumber: string) => void
+export interface BatchFormProps {
+  onSuccess?: (batchNumber: string, recipeName: string) => void
+  onClose?: () => void
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function getMinDatetime(): string {
+  const d = new Date(Date.now() + 60_000)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function toNumber(val: string | number): number {
+  if (typeof val === 'number') return val
+  return parseFloat(val)
+}
 
 function formatApiError(error: ApiError): string {
   switch (error.code) {
@@ -76,7 +107,10 @@ function formatApiError(error: ApiError): string {
       const shortages = error.details?.shortages ?? []
       if (shortages.length > 0) {
         const lines = shortages
-          .map((s) => `  - Material ${s.materialId}: needs ${s.required}, only ${s.available} available`)
+          .map(
+            (s) =>
+              `Material ${s.materialId}: needs ${s.required}, only ${s.available} available`,
+          )
           .join('\n')
         return `${error.message}\n${lines}`
       }
@@ -92,7 +126,7 @@ function formatApiError(error: ApiError): string {
       const lines = [
         ...formErrors,
         ...Object.entries(fieldErrors).flatMap(([field, msgs]) =>
-          msgs.map((m) => `${field}: ${m}`)
+          msgs.map((m) => `${field}: ${m}`),
         ),
       ]
       return lines.length > 0 ? lines.join('\n') : error.message
@@ -102,28 +136,25 @@ function formatApiError(error: ApiError): string {
   }
 }
 
-// Minimum datetime string for inputs: 1 minute from now
-function getMinDatetime(): string {
-  const d = new Date(Date.now() + 60_000)
-  // Format as YYYY-MM-DDTHH:MM (datetime-local input format)
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-}
-
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export default function BatchForm({ onSuccess }: BatchFormProps) {
+export default function BatchForm({ onSuccess, onClose }: BatchFormProps) {
+  const { success: toastSuccess, error: toastError } = useToast()
+
   // --- Data state ---
   const [labs, setLabs] = useState<Lab[]>([])
-  const [recipes, setRecipes] = useState<Recipe[]>([])
-  const [labDetail, setLabDetail] = useState<LabDetail | null>(null)
+  const [recipes, setRecipes] = useState<RecipeSummary[]>([])
+  const [recipeDetail, setRecipeDetail] = useState<RecipeDetail | null>(null)
+  const [labStock, setLabStock] = useState<LabStockEntry[]>([])
+  const [materialRequirements, setMaterialRequirements] = useState<MaterialRequirement[]>([])
 
   // --- Load state ---
   const [loadingLabs, setLoadingLabs] = useState(true)
   const [loadingRecipes, setLoadingRecipes] = useState(false)
-  const [loadingLabDetail, setLoadingLabDetail] = useState(false)
+  const [loadingRecipeDetail, setLoadingRecipeDetail] = useState(false)
+  const [loadingStock, setLoadingStock] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   // --- Form state ---
@@ -132,15 +163,11 @@ export default function BatchForm({ onSuccess }: BatchFormProps) {
     recipeId: '',
     quantity: '',
     plannedStartTime: '',
-    estimatedCompletionTime: '',
-    machineId: '',
-    employeeId: '',
   })
 
   // --- Feedback state ---
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FormValues, string>>>({})
   const [apiError, setApiError] = useState<string | null>(null)
-  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   // ---------------------------------------------------------------------------
   // Fetch labs on mount
@@ -153,9 +180,7 @@ export default function BatchForm({ onSuccess }: BatchFormProps) {
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return
-        if (json.success) {
-          setLabs(json.data as Lab[])
-        }
+        if (json.success) setLabs(json.data as Lab[])
       })
       .catch(() => {
         if (!cancelled) setLabs([])
@@ -164,24 +189,23 @@ export default function BatchForm({ onSuccess }: BatchFormProps) {
         if (!cancelled) setLoadingLabs(false)
       })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // ---------------------------------------------------------------------------
-  // Fetch recipes whenever any lab is selected
+  // Fetch recipes on mount
   // ---------------------------------------------------------------------------
   useEffect(() => {
     let cancelled = false
     setLoadingRecipes(true)
-    setRecipes([])
 
     fetch('/api/admin/recipes?take=100')
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return
-        if (json.success) {
-          setRecipes(json.data as Recipe[])
-        }
+        if (json.success) setRecipes(json.data as RecipeSummary[])
       })
       .catch(() => {
         if (!cancelled) setRecipes([])
@@ -190,62 +214,124 @@ export default function BatchForm({ onSuccess }: BatchFormProps) {
         if (!cancelled) setLoadingRecipes(false)
       })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // ---------------------------------------------------------------------------
-  // Fetch lab detail (machines + employees) when lab changes
+  // Fetch lab stock when lab changes
   // ---------------------------------------------------------------------------
-  const fetchLabDetail = useCallback((labId: string) => {
+  const fetchLabStock = useCallback((labId: string) => {
     if (!labId) {
-      setLabDetail(null)
+      setLabStock([])
       return
     }
 
     let cancelled = false
-    setLoadingLabDetail(true)
+    setLoadingStock(true)
 
-    fetch(`/api/admin/labs/${labId}`)
+    fetch(`/api/admin/lab-stock?labId=${labId}`)
       .then((res) => res.json())
       .then((json) => {
         if (cancelled) return
-        if (json.success) {
-          setLabDetail(json.data as LabDetail)
-        }
+        if (json.success) setLabStock(json.data as LabStockEntry[])
+        else setLabStock([])
       })
       .catch(() => {
-        if (!cancelled) setLabDetail(null)
+        if (!cancelled) setLabStock([])
       })
       .finally(() => {
-        if (!cancelled) setLoadingLabDetail(false)
+        if (!cancelled) setLoadingStock(false)
       })
 
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [])
+
+  // ---------------------------------------------------------------------------
+  // Fetch recipe detail (with ingredients) when recipe changes
+  // ---------------------------------------------------------------------------
+  const fetchRecipeDetail = useCallback((recipeId: string) => {
+    if (!recipeId) {
+      setRecipeDetail(null)
+      return
+    }
+
+    let cancelled = false
+    setLoadingRecipeDetail(true)
+
+    fetch(`/api/admin/recipes/${recipeId}`)
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return
+        if (json.success) setRecipeDetail(json.data as RecipeDetail)
+        else setRecipeDetail(null)
+      })
+      .catch(() => {
+        if (!cancelled) setRecipeDetail(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingRecipeDetail(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // ---------------------------------------------------------------------------
+  // Recalculate material requirements whenever recipe, quantity, or stock changes
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (!recipeDetail || !values.quantity) {
+      setMaterialRequirements([])
+      return
+    }
+
+    const qty = parseInt(values.quantity, 10)
+    if (isNaN(qty) || qty < 1) {
+      setMaterialRequirements([])
+      return
+    }
+
+    const stockMap = new Map(labStock.map((s) => [s.materialId, toNumber(s.quantity)]))
+
+    const requirements: MaterialRequirement[] = recipeDetail.ingredients.map((ing) => {
+      const materialId = (ing.rawMaterialId ?? ing.intermediateProductId) as string
+      const material = ing.rawMaterial ?? ing.intermediateProduct
+      const materialName = material?.name ?? materialId
+      const unit = material?.unit ?? ing.unit
+      const required = toNumber(ing.quantity) * qty
+      const available = stockMap.get(materialId) ?? 0
+      const sufficient = available >= required
+
+      return { materialId, materialName, unit, required, available, sufficient }
+    })
+
+    setMaterialRequirements(requirements)
+  }, [recipeDetail, values.quantity, labStock])
 
   // ---------------------------------------------------------------------------
   // Handle field changes
   // ---------------------------------------------------------------------------
-  function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
-  ) {
+  function handleChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
     const { name, value } = e.target
-    setValues((prev) => ({ ...prev, [name]: value }))
-    // Clear field-level error on change
+
     setFieldErrors((prev) => ({ ...prev, [name]: undefined }))
     setApiError(null)
-    setSuccessMessage(null)
 
     if (name === 'labId') {
-      // Reset downstream fields when lab changes
-      setValues((prev) => ({
-        ...prev,
-        labId: value,
-        recipeId: '',
-        machineId: '',
-        employeeId: '',
-      }))
-      fetchLabDetail(value)
+      setValues((prev) => ({ ...prev, labId: value, recipeId: '' }))
+      setRecipeDetail(null)
+      setMaterialRequirements([])
+      fetchLabStock(value)
+    } else if (name === 'recipeId') {
+      setValues((prev) => ({ ...prev, recipeId: value }))
+      fetchRecipeDetail(value)
+    } else {
+      setValues((prev) => ({ ...prev, [name]: value }))
     }
   }
 
@@ -259,7 +345,7 @@ export default function BatchForm({ onSuccess }: BatchFormProps) {
     if (!values.recipeId) errors.recipeId = 'Please select a recipe.'
 
     const qty = parseInt(values.quantity, 10)
-    if (!values.quantity || isNaN(qty) || qty < 1) {
+    if (!values.quantity || isNaN(qty) || qty < 1 || !Number.isInteger(qty)) {
       errors.quantity = 'Quantity must be a positive whole number.'
     }
 
@@ -267,15 +353,6 @@ export default function BatchForm({ onSuccess }: BatchFormProps) {
       errors.plannedStartTime = 'Start time is required.'
     } else if (new Date(values.plannedStartTime) <= new Date()) {
       errors.plannedStartTime = 'Start time must be in the future.'
-    }
-
-    if (!values.estimatedCompletionTime) {
-      errors.estimatedCompletionTime = 'Estimated completion time is required.'
-    } else if (
-      values.plannedStartTime &&
-      new Date(values.estimatedCompletionTime) <= new Date(values.plannedStartTime)
-    ) {
-      errors.estimatedCompletionTime = 'Completion time must be after start time.'
     }
 
     setFieldErrors(errors)
@@ -288,23 +365,17 @@ export default function BatchForm({ onSuccess }: BatchFormProps) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setApiError(null)
-    setSuccessMessage(null)
 
     if (!validate()) return
 
     setSubmitting(true)
 
-    const payload: Record<string, unknown> = {
+    const payload = {
       labId: values.labId,
       recipeId: values.recipeId,
       quantity: parseInt(values.quantity, 10),
-      // Convert datetime-local format to ISO string
       plannedStartTime: new Date(values.plannedStartTime).toISOString(),
-      estimatedCompletionTime: new Date(values.estimatedCompletionTime).toISOString(),
     }
-
-    if (values.machineId) payload.machineId = values.machineId
-    if (values.employeeId) payload.employeeId = values.employeeId
 
     try {
       const res = await fetch('/api/admin/production/batches', {
@@ -322,24 +393,20 @@ export default function BatchForm({ onSuccess }: BatchFormProps) {
       }
 
       const batchNumber = json.data?.batchNumber ?? 'N/A'
-      setSuccessMessage(`Batch created successfully! Batch #: ${batchNumber}`)
+      const recipeName =
+        recipes.find((r) => r.id === values.recipeId)?.name ?? 'Unknown Recipe'
 
-      // Reset form
-      setValues({
-        labId: '',
-        recipeId: '',
-        quantity: '',
-        plannedStartTime: '',
-        estimatedCompletionTime: '',
-        machineId: '',
-        employeeId: '',
+      toastSuccess({
+        title: 'Batch Created',
+        message: `${recipeName} batch scheduled (#${batchNumber})`,
       })
-      setLabDetail(null)
-      setFieldErrors({})
 
-      onSuccess?.(batchNumber)
+      onSuccess?.(batchNumber, recipeName)
     } catch {
-      setApiError('Network error. Please check your connection and try again.')
+      toastError({
+        title: 'Network Error',
+        message: 'Failed to connect. Please check your connection and try again.',
+      })
     } finally {
       setSubmitting(false)
     }
@@ -348,292 +415,345 @@ export default function BatchForm({ onSuccess }: BatchFormProps) {
   // ---------------------------------------------------------------------------
   // Derived data
   // ---------------------------------------------------------------------------
-  const availableMachines = labDetail?.machines.filter((m) => m.available) ?? []
-  const employees = labDetail?.employees ?? []
+  const hasShortages = materialRequirements.some((r) => !r.sufficient)
+  const showMaterials =
+    values.recipeId &&
+    values.labId &&
+    values.quantity &&
+    parseInt(values.quantity, 10) >= 1 &&
+    (loadingRecipeDetail || loadingStock || materialRequirements.length > 0)
+  const canSubmit = !submitting && !loadingLabs && !hasShortages
   const minDatetime = getMinDatetime()
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <form
-      onSubmit={handleSubmit}
-      noValidate
-      className="space-y-5"
-      aria-label="Create production batch"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="batch-form-modal-title"
     >
-      {/* Success message */}
-      {successMessage && (
-        <div
-          role="status"
-          className="bg-green-50 border border-green-300 text-green-800 rounded-lg px-4 py-3 text-sm"
-        >
-          {successMessage}
-        </div>
-      )}
-
-      {/* API error */}
-      {apiError && (
-        <div
-          role="alert"
-          className="bg-red-50 border border-red-300 text-red-800 rounded-lg px-4 py-3 text-sm whitespace-pre-wrap"
-        >
-          <span className="font-semibold block mb-1">Error</span>
-          {apiError}
-        </div>
-      )}
-
-      {/* Row: Lab + Recipe */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Lab Selection */}
-        <div>
-          <label
-            htmlFor="batch-labId"
-            className="block text-sm font-medium text-gray-700 mb-1"
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <h2
+            id="batch-form-modal-title"
+            className="text-xl font-bold text-gray-900"
           >
-            Lab <span className="text-red-500">*</span>
-          </label>
-          <select
-            id="batch-labId"
-            name="labId"
-            value={values.labId}
-            onChange={handleChange}
-            disabled={loadingLabs}
-            required
-            className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] ${
-              fieldErrors.labId
-                ? 'border-red-400 focus:ring-red-400'
-                : 'border-gray-300'
-            } disabled:bg-gray-100`}
-          >
-            <option value="">{loadingLabs ? 'Loading labs...' : 'Select a lab'}</option>
-            {labs.map((lab) => (
-              <option key={lab.id} value={lab.id}>
-                {lab.name} ({lab.type})
-              </option>
-            ))}
-          </select>
-          {fieldErrors.labId && (
-            <p className="mt-1 text-xs text-red-600">{fieldErrors.labId}</p>
-          )}
-        </div>
-
-        {/* Recipe Selection */}
-        <div>
-          <label
-            htmlFor="batch-recipeId"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Recipe <span className="text-red-500">*</span>
-          </label>
-          <select
-            id="batch-recipeId"
-            name="recipeId"
-            value={values.recipeId}
-            onChange={handleChange}
-            disabled={loadingRecipes}
-            required
-            className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] ${
-              fieldErrors.recipeId
-                ? 'border-red-400 focus:ring-red-400'
-                : 'border-gray-300'
-            } disabled:bg-gray-100`}
-          >
-            <option value="">{loadingRecipes ? 'Loading recipes...' : 'Select a recipe'}</option>
-            {recipes.map((recipe) => (
-              <option key={recipe.id} value={recipe.id}>
-                {recipe.name} ({recipe.laborMinutes} min, {recipe._count.ingredients} ingredients)
-              </option>
-            ))}
-          </select>
-          {fieldErrors.recipeId && (
-            <p className="mt-1 text-xs text-red-600">{fieldErrors.recipeId}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Quantity */}
-      <div className="max-w-xs">
-        <label
-          htmlFor="batch-quantity"
-          className="block text-sm font-medium text-gray-700 mb-1"
-        >
-          Quantity <span className="text-red-500">*</span>
-        </label>
-        <input
-          id="batch-quantity"
-          type="number"
-          name="quantity"
-          value={values.quantity}
-          onChange={handleChange}
-          min={1}
-          step={1}
-          placeholder="e.g. 50"
-          required
-          className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] ${
-            fieldErrors.quantity
-              ? 'border-red-400 focus:ring-red-400'
-              : 'border-gray-300'
-          }`}
-        />
-        {fieldErrors.quantity && (
-          <p className="mt-1 text-xs text-red-600">{fieldErrors.quantity}</p>
-        )}
-      </div>
-
-      {/* Row: Planned Start + Estimated Completion */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div>
-          <label
-            htmlFor="batch-plannedStartTime"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Planned Start Time <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="batch-plannedStartTime"
-            type="datetime-local"
-            name="plannedStartTime"
-            value={values.plannedStartTime}
-            onChange={handleChange}
-            min={minDatetime}
-            required
-            className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] ${
-              fieldErrors.plannedStartTime
-                ? 'border-red-400 focus:ring-red-400'
-                : 'border-gray-300'
-            }`}
-          />
-          {fieldErrors.plannedStartTime && (
-            <p className="mt-1 text-xs text-red-600">{fieldErrors.plannedStartTime}</p>
-          )}
-        </div>
-
-        <div>
-          <label
-            htmlFor="batch-estimatedCompletionTime"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Estimated Completion <span className="text-red-500">*</span>
-          </label>
-          <input
-            id="batch-estimatedCompletionTime"
-            type="datetime-local"
-            name="estimatedCompletionTime"
-            value={values.estimatedCompletionTime}
-            onChange={handleChange}
-            min={values.plannedStartTime || minDatetime}
-            required
-            className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] ${
-              fieldErrors.estimatedCompletionTime
-                ? 'border-red-400 focus:ring-red-400'
-                : 'border-gray-300'
-            }`}
-          />
-          {fieldErrors.estimatedCompletionTime && (
-            <p className="mt-1 text-xs text-red-600">{fieldErrors.estimatedCompletionTime}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Row: Machine + Employee (only shown when a lab is selected) */}
-      {values.labId && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Machine Assignment */}
-          <div>
-            <label
-              htmlFor="batch-machineId"
-              className="block text-sm font-medium text-gray-700 mb-1"
+            Create Production Batch
+          </h2>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors"
+              aria-label="Close modal"
             >
-              Machine <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <select
-              id="batch-machineId"
-              name="machineId"
-              value={values.machineId}
-              onChange={handleChange}
-              disabled={loadingLabDetail}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] disabled:bg-gray-100"
+              <X className="w-5 h-5" />
+            </button>
+          )}
+        </div>
+
+        <form onSubmit={handleSubmit} noValidate className="p-6 space-y-5" aria-label="Create production batch">
+          {/* API error */}
+          {apiError && (
+            <div
+              role="alert"
+              className="bg-red-50 border border-red-300 text-red-800 rounded-lg px-4 py-3 text-sm"
             >
-              <option value="">
-                {loadingLabDetail ? 'Loading...' : 'No machine assigned'}
-              </option>
-              {availableMachines.map((machine) => (
-                <option key={machine.id} value={machine.id}>
-                  {machine.name} ({machine.type})
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <span className="whitespace-pre-wrap">{apiError}</span>
+              </div>
+            </div>
+          )}
+
+          {/* Row: Lab + Recipe */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Lab Selection */}
+            <div>
+              <label
+                htmlFor="batch-labId"
+                className="block text-sm font-semibold text-gray-700 mb-1"
+              >
+                Lab <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="batch-labId"
+                name="labId"
+                value={values.labId}
+                onChange={handleChange}
+                disabled={loadingLabs}
+                required
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] ${
+                  fieldErrors.labId ? 'border-red-400 focus:ring-red-400' : 'border-gray-300'
+                } disabled:bg-gray-100`}
+              >
+                <option value="">
+                  {loadingLabs ? 'Loading labs...' : 'Select a lab'}
                 </option>
-              ))}
-            </select>
-            {!loadingLabDetail && availableMachines.length === 0 && values.labId && (
-              <p className="mt-1 text-xs text-gray-500">No available machines in this lab.</p>
-            )}
+                {labs.map((lab) => (
+                  <option key={lab.id} value={lab.id}>
+                    {lab.name} ({lab.type})
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.labId && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {fieldErrors.labId}
+                </p>
+              )}
+            </div>
+
+            {/* Recipe Selection */}
+            <div>
+              <label
+                htmlFor="batch-recipeId"
+                className="block text-sm font-semibold text-gray-700 mb-1"
+              >
+                Recipe <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="batch-recipeId"
+                name="recipeId"
+                value={values.recipeId}
+                onChange={handleChange}
+                disabled={loadingRecipes}
+                required
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] ${
+                  fieldErrors.recipeId ? 'border-red-400 focus:ring-red-400' : 'border-gray-300'
+                } disabled:bg-gray-100`}
+              >
+                <option value="">
+                  {loadingRecipes ? 'Loading recipes...' : 'Select a recipe'}
+                </option>
+                {recipes.map((recipe) => (
+                  <option key={recipe.id} value={recipe.id}>
+                    {recipe.name} ({recipe._count.ingredients} ingredients)
+                  </option>
+                ))}
+              </select>
+              {fieldErrors.recipeId && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {fieldErrors.recipeId}
+                </p>
+              )}
+            </div>
           </div>
 
-          {/* Employee Assignment */}
-          <div>
-            <label
-              htmlFor="batch-employeeId"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              Employee <span className="text-gray-400 font-normal">(optional)</span>
-            </label>
-            <select
-              id="batch-employeeId"
-              name="employeeId"
-              value={values.employeeId}
-              onChange={handleChange}
-              disabled={loadingLabDetail}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] disabled:bg-gray-100"
-            >
-              <option value="">
-                {loadingLabDetail ? 'Loading...' : 'No employee assigned'}
-              </option>
-              {employees.map((emp) => (
-                <option key={emp.id} value={emp.id}>
-                  {emp.name} — {emp.role}
-                </option>
-              ))}
-            </select>
-            {!loadingLabDetail && employees.length === 0 && values.labId && (
-              <p className="mt-1 text-xs text-gray-500">No employees assigned to this lab.</p>
-            )}
-          </div>
-        </div>
-      )}
+          {/* Row: Quantity + Planned Start Time */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Quantity */}
+            <div>
+              <label
+                htmlFor="batch-quantity"
+                className="block text-sm font-semibold text-gray-700 mb-1"
+              >
+                Quantity (units) <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="batch-quantity"
+                type="number"
+                name="quantity"
+                value={values.quantity}
+                onChange={handleChange}
+                min={1}
+                step={1}
+                placeholder="e.g. 50"
+                required
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] ${
+                  fieldErrors.quantity ? 'border-red-400 focus:ring-red-400' : 'border-gray-300'
+                }`}
+              />
+              {fieldErrors.quantity && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {fieldErrors.quantity}
+                </p>
+              )}
+            </div>
 
-      {/* Submit */}
-      <div className="pt-2">
-        <button
-          type="submit"
-          disabled={submitting || loadingLabs}
-          className="inline-flex items-center gap-2 bg-[#8B4513] hover:bg-[#7a3c10] disabled:bg-gray-400 text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8B4513]"
-        >
-          {submitting && (
-            <svg
-              className="animate-spin h-4 w-4"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              aria-hidden="true"
-            >
-              <circle
-                className="opacity-25"
-                cx="12"
-                cy="12"
-                r="10"
-                stroke="currentColor"
-                strokeWidth="4"
+            {/* Planned Start Time */}
+            <div>
+              <label
+                htmlFor="batch-plannedStartTime"
+                className="block text-sm font-semibold text-gray-700 mb-1"
+              >
+                Planned Start Time <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="batch-plannedStartTime"
+                type="datetime-local"
+                name="plannedStartTime"
+                value={values.plannedStartTime}
+                onChange={handleChange}
+                min={minDatetime}
+                required
+                className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#8B4513] ${
+                  fieldErrors.plannedStartTime
+                    ? 'border-red-400 focus:ring-red-400'
+                    : 'border-gray-300'
+                }`}
               />
-              <path
-                className="opacity-75"
-                fill="currentColor"
-                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-              />
-            </svg>
+              {fieldErrors.plannedStartTime && (
+                <p className="mt-1 text-xs text-red-600" role="alert">
+                  {fieldErrors.plannedStartTime}
+                </p>
+              )}
+            </div>
+          </div>
+
+          {/* Dynamic Material Requirements */}
+          {showMaterials && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                Material Requirements
+              </h3>
+
+              {loadingRecipeDetail || loadingStock ? (
+                <div className="space-y-2 animate-pulse">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="h-8 bg-gray-100 rounded" />
+                  ))}
+                </div>
+              ) : materialRequirements.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">
+                  No ingredients found for this recipe.
+                </p>
+              ) : (
+                <>
+                  {/* Shortage alert */}
+                  {hasShortages && (
+                    <div
+                      role="alert"
+                      className="mb-3 bg-red-50 border border-red-300 text-red-800 rounded-lg px-4 py-3 text-sm"
+                    >
+                      <div className="flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0 text-red-600" />
+                        <div>
+                          <p className="font-semibold">Insufficient Materials</p>
+                          <p className="text-xs mt-0.5">
+                            The following materials are short in the selected lab.
+                            Transfer stock before scheduling this batch.
+                          </p>
+                          <ul className="mt-1 space-y-0.5 text-xs list-disc list-inside">
+                            {materialRequirements
+                              .filter((r) => !r.sufficient)
+                              .map((r) => (
+                                <li key={r.materialId}>
+                                  <span className="font-medium">{r.materialName}</span>:{' '}
+                                  need {r.required} {r.unit}, have {r.available} {r.unit}
+                                </li>
+                              ))}
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Requirements table */}
+                  <div className="rounded-lg border border-gray-200 overflow-hidden">
+                    <table className="w-full text-sm" aria-label="Material requirements">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th
+                            scope="col"
+                            className="px-3 py-2 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide"
+                          >
+                            Material
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase tracking-wide"
+                          >
+                            Required
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-3 py-2 text-right text-xs font-semibold text-gray-600 uppercase tracking-wide"
+                          >
+                            Available
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-3 py-2 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide"
+                          >
+                            Status
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {materialRequirements.map((req) => (
+                          <tr
+                            key={req.materialId}
+                            className={req.sufficient ? '' : 'bg-red-50'}
+                          >
+                            <td className="px-3 py-2 font-medium text-gray-900">
+                              {req.materialName}
+                            </td>
+                            <td className="px-3 py-2 text-right text-gray-700">
+                              {req.required} {req.unit}
+                            </td>
+                            <td
+                              className={`px-3 py-2 text-right font-semibold ${
+                                req.sufficient ? 'text-green-700' : 'text-red-700'
+                              }`}
+                            >
+                              {req.available} {req.unit}
+                            </td>
+                            <td className="px-3 py-2 text-center">
+                              {req.sufficient ? (
+                                <span className="inline-flex items-center gap-1 text-green-700">
+                                  <CheckCircle className="w-4 h-4" aria-hidden="true" />
+                                  <span className="sr-only">Sufficient</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-red-600">
+                                  <AlertCircle className="w-4 h-4" aria-hidden="true" />
+                                  <span className="sr-only">Insufficient</span>
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
+            </div>
           )}
-          {submitting ? 'Creating batch...' : 'Create Batch'}
-        </button>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              title={
+                hasShortages
+                  ? 'Cannot submit: insufficient materials in the selected lab'
+                  : undefined
+              }
+              className="flex-1 inline-flex items-center justify-center gap-2 bg-[#8B4513] hover:bg-[#7a3c10] disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-semibold px-6 py-2.5 rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#8B4513]"
+            >
+              {submitting && (
+                <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />
+              )}
+              {submitting ? 'Creating Batch...' : 'Create Batch'}
+            </button>
+          </div>
+        </form>
       </div>
-    </form>
+    </div>
   )
 }
