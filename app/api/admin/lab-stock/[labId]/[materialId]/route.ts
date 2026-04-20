@@ -121,3 +121,73 @@ export const PATCH = withAdminAuth(
     }
   },
 )
+
+// ---------------------------------------------------------------------------
+// DELETE /api/admin/lab-stock/[labId]/[materialId]  (admin only)
+// ---------------------------------------------------------------------------
+// Removes a stock entry for a specific (lab, material) pair.
+// This deletes the LabStock record entirely.
+// ---------------------------------------------------------------------------
+
+export const DELETE = withAdminAuth(
+  async (req: NextRequest, { params }) => {
+    try {
+      const { labId, materialId } = params as { labId: string; materialId: string }
+
+      // Verify both the lab and material exist
+      const [lab, material] = await Promise.all([
+        prisma.productionLab.findUnique({ where: { id: labId }, select: { id: true } }),
+        prisma.rawMaterial.findUnique({ where: { id: materialId }, select: { id: true } }),
+      ])
+
+      if (!lab) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'LAB_NOT_FOUND',
+              message: `Lab '${labId}' was not found.`,
+            },
+          },
+          { status: 404 },
+        )
+      }
+
+      if (!material) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: {
+              code: 'MATERIAL_NOT_FOUND',
+              message: `Raw material '${materialId}' was not found.`,
+            },
+          },
+          { status: 404 },
+        )
+      }
+
+      // Delete the stock record
+      const stock = await prisma.labStock.delete({
+        where: {
+          labId_materialId: { labId, materialId },
+        },
+        include: {
+          material: {
+            select: { id: true, name: true, type: true, unit: true },
+          },
+        },
+      })
+
+      return NextResponse.json({ success: true, data: stock })
+    } catch (error) {
+      console.error('[DELETE /api/admin/lab-stock/[labId]/[materialId]] Error:', error)
+      return NextResponse.json(
+        {
+          success: false,
+          error: { code: 'INTERNAL_ERROR', message: 'Failed to delete lab stock.' },
+        },
+        { status: 500 },
+      )
+    }
+  },
+)

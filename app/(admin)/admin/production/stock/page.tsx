@@ -15,6 +15,7 @@ import {
   X,
   ChevronDown,
   ChevronUp,
+  Check,
 } from 'lucide-react'
 import {
   RawMaterial,
@@ -273,6 +274,242 @@ function StockAdjustModal({
 }
 
 // ---------------------------------------------------------------------------
+// Add Stock Modal
+// ---------------------------------------------------------------------------
+
+interface AddStockModalProps {
+  labId: string
+  labName: string
+  onClose: () => void
+  onSaved: () => void
+}
+
+function AddStockModal({
+  labId,
+  labName,
+  onClose,
+  onSaved,
+}: AddStockModalProps) {
+  const { success, error: toastError } = useToast()
+  const [materials, setMaterials] = useState<RawMaterial[]>([])
+  const [isLoadingMaterials, setIsLoadingMaterials] = useState(false)
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>('')
+  const [quantity, setQuantity] = useState<string>('0')
+  const [isSaving, setIsSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Load available materials on mount
+  useEffect(() => {
+    const loadMaterials = async () => {
+      setIsLoadingMaterials(true)
+      try {
+        const res = await fetch('/api/admin/raw-materials?take=100')
+        const json = await res.json()
+        if (json.success) {
+          setMaterials(json.data ?? [])
+        }
+      } catch (err) {
+        console.error('Failed to load materials:', err)
+      } finally {
+        setIsLoadingMaterials(false)
+      }
+    }
+    loadMaterials()
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+
+    if (!selectedMaterialId) {
+      setError('Please select a material.')
+      return
+    }
+
+    const qty = parseFloat(quantity)
+    if (isNaN(qty) || qty < 0) {
+      setError('Quantity must be a non-negative number.')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const res = await fetch(
+        `/api/admin/lab-stock/${labId}/${selectedMaterialId}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ quantity: qty }),
+        },
+      )
+
+      const json = await res.json()
+
+      if (!res.ok || !json.success) {
+        toastError({
+          title: 'Save Failed',
+          message: json.error?.message ?? 'Failed to add material to stock.',
+        })
+        return
+      }
+
+      const material = materials.find(m => m.id === selectedMaterialId)
+      success({
+        title: 'Material Added',
+        message: `"${material?.name}" added to ${labName} with ${qty} ${material?.unit}.`,
+      })
+      onSaved()
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const selectedMaterial = materials.find(m => m.id === selectedMaterialId)
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-stock-modal-title"
+    >
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+          <div>
+            <h2
+              id="add-stock-modal-title"
+              className="text-xl font-bold text-gray-900"
+            >
+              Add Material
+            </h2>
+            <p className="text-xs text-gray-500 mt-1">
+              {labName}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+            aria-label="Close modal"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          {/* Material select */}
+          <div>
+            <label
+              htmlFor="material"
+              className="block text-sm font-semibold text-gray-700 mb-2"
+            >
+              Select Material <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="material"
+              value={selectedMaterialId}
+              onChange={(e) => {
+                setSelectedMaterialId(e.target.value)
+                setError(null)
+              }}
+              disabled={isLoadingMaterials}
+              className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${
+                error ? 'border-red-400' : 'border-gray-300'
+              } disabled:opacity-50`}
+            >
+              <option value="">
+                {isLoadingMaterials ? 'Loading materials...' : 'Choose a material...'}
+              </option>
+              {materials.map((mat) => (
+                <option key={mat.id} value={mat.id}>
+                  {mat.name} ({mat.type})
+                </option>
+              ))}
+            </select>
+            {error && (
+              <p className="text-xs text-red-600 mt-1" role="alert">
+                {error}
+              </p>
+            )}
+          </div>
+
+          {/* Material info */}
+          {selectedMaterial && (
+            <div className="bg-blue-50 rounded-lg p-3 text-sm">
+              <p className="text-blue-900">
+                <span className="font-semibold">{selectedMaterial.name}</span> — {selectedMaterial.type}
+              </p>
+              <p className="text-xs text-blue-700 mt-1">
+                Unit: <span className="font-semibold">{selectedMaterial.unit}</span>
+              </p>
+            </div>
+          )}
+
+          {/* Quantity input */}
+          <div>
+            <label
+              htmlFor="add-quantity"
+              className="block text-sm font-semibold text-gray-700 mb-2"
+            >
+              Initial Quantity <span className="text-red-500">*</span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                id="add-quantity"
+                type="number"
+                value={quantity}
+                onChange={(e) => {
+                  setQuantity(e.target.value)
+                  setError(null)
+                }}
+                placeholder="0.00"
+                step="0.01"
+                min="0"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+              {selectedMaterial && (
+                <span className="flex items-center px-3 py-2 bg-gray-100 rounded-lg text-sm font-medium text-gray-700">
+                  {selectedMaterial.unit}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving || !selectedMaterialId || isNaN(parseFloat(quantity))}
+              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {isSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  Add Material
+                </>
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Lab Stock Section
 // ---------------------------------------------------------------------------
 
@@ -280,13 +517,50 @@ function LabStockSection({
   labWithStock,
   onRefresh,
   onAdjustStock,
+  onAddStock,
 }: LabStockSectionProps) {
   const { lab, stock } = labWithStock
   const [isExpanded, setIsExpanded] = useState(false)
+  const { success, error: toastError } = useToast()
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null)
 
   const lowStockEntries = stock.filter(
     (s) => toNumber(s.quantity) <= toNumber(s.minThreshold),
   )
+
+  const handleDeleteStock = async (stockId: string, materialId: string, materialName: string) => {
+    setIsDeletingId(stockId)
+    try {
+      const res = await fetch(
+        `/api/admin/lab-stock/${lab.id}/${materialId}`,
+        { method: 'DELETE' },
+      )
+
+      const json = await res.json()
+
+      if (!res.ok || !json.success) {
+        toastError({
+          title: 'Delete Failed',
+          message: json.error?.message ?? 'Failed to remove material from stock.',
+        })
+        return
+      }
+
+      success({
+        title: 'Material Removed',
+        message: `"${materialName}" removed from ${lab.name}.`,
+      })
+      onRefresh()
+    } catch (err) {
+      console.error('Error deleting stock:', err)
+      toastError({
+        title: 'Delete Failed',
+        message: 'An error occurred while removing the material.',
+      })
+    } finally {
+      setIsDeletingId(null)
+    }
+  }
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -335,8 +609,8 @@ function LabStockSection({
       {isExpanded && (
         <div className="border-t border-gray-200 divide-y divide-gray-100">
           {stock.length === 0 ? (
-            <div className="p-6 text-center">
-              <Package className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <div className="p-6 text-center space-y-3">
+              <Package className="w-8 h-8 text-gray-300 mx-auto" />
               <p className="text-sm text-gray-500">
                 No stock records for this lab yet.
               </p>
@@ -388,7 +662,7 @@ function LabStockSection({
                     </div>
                   </div>
 
-                  {/* Status badge and action button */}
+                  {/* Status badge and action buttons */}
                   <div className="flex-shrink-0 flex items-center gap-2">
                     {isLow && (
                       <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
@@ -405,10 +679,38 @@ function LabStockSection({
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteStock(s.id, s.materialId, s.material.name)}
+                      disabled={isDeletingId === s.id}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={`Delete ${s.material.name} from stock`}
+                      aria-label={`Delete ${s.material.name} from ${lab.name}`}
+                    >
+                      {isDeletingId === s.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                    </button>
                   </div>
                 </div>
               )
             })
+          )}
+
+          {/* Add Material button - always visible when expanded */}
+          {onAddStock && (
+            <div className="p-4 bg-green-50 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => onAddStock(lab.id, lab.name)}
+                className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                {stock.length === 0 ? 'Add First Material' : 'Add More Material'}
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -431,6 +733,8 @@ export default function AdminStockPage() {
   const [selectedStock, setSelectedStock] = useState<StockEntry | null>(null)
   const [selectedLabId, setSelectedLabId] = useState<string>('')
   const [selectedLabName, setSelectedLabName] = useState<string>('')
+  const [addStockLabId, setAddStockLabId] = useState<string>('')
+  const [addStockLabName, setAddStockLabName] = useState<string>('')
 
   const fetchStock = useCallback(async () => {
     setIsLoading(true)
@@ -613,6 +917,10 @@ export default function AdminStockPage() {
                 setSelectedLabId(lws.lab.id)
                 setSelectedLabName(lws.lab.name)
               }}
+              onAddStock={(labId, labName) => {
+                setAddStockLabId(labId)
+                setAddStockLabName(labName)
+              }}
             />
           ))
         )}
@@ -627,6 +935,22 @@ export default function AdminStockPage() {
           onClose={() => setSelectedStock(null)}
           onSaved={() => {
             setSelectedStock(null)
+            fetchStock()
+          }}
+        />
+      )}
+
+      {addStockLabId && (
+        <AddStockModal
+          labId={addStockLabId}
+          labName={addStockLabName}
+          onClose={() => {
+            setAddStockLabId('')
+            setAddStockLabName('')
+          }}
+          onSaved={() => {
+            setAddStockLabId('')
+            setAddStockLabName('')
             fetchStock()
           }}
         />
