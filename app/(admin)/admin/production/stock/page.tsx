@@ -681,7 +681,10 @@ function LabStockSection({
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleDeleteStock(s.id, s.materialId, s.material.name)}
+                      onClick={() => {
+                        console.log('Delete clicked for', s.materialId)
+                        handleDeleteStock(s.id, s.materialId, s.material.name)
+                      }}
                       disabled={isDeletingId === s.id}
                       className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       title={`Delete ${s.material.name} from stock`}
@@ -700,7 +703,7 @@ function LabStockSection({
           )}
 
           {/* Add Material button - always visible when expanded */}
-          {onAddStock && (
+          {onAddStock ? (
             <div className="p-4 bg-green-50 border-t border-gray-200">
               <button
                 type="button"
@@ -711,7 +714,7 @@ function LabStockSection({
                 {stock.length === 0 ? 'Add First Material' : 'Add More Material'}
               </button>
             </div>
-          )}
+          ) : null}
         </div>
       )}
     </div>

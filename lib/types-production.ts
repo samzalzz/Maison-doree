@@ -534,4 +534,5 @@ export type LabStockSectionProps = {
   labWithStock: LabWithStock;
   onRefresh: () => void;
   onAdjustStock: (stock: LabStock & { material: RawMaterial }) => void;
+  onAddStock?: (labId: string, labName: string) => void;
 };
