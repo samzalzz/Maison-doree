@@ -1,132 +1,171 @@
-import { PrismaClient } from '@prisma/client'
-import bcrypt from 'bcryptjs'
+import { PrismaClient, LabType, ProductionStatus } from '@prisma/client'
+import { Decimal } from '@prisma/client/runtime/library'
 
 const prisma = new PrismaClient()
 
 async function main() {
-  console.log('🌱 Seeding database...')
+  console.log('Starting database seed...')
 
-  // Create test users for each role
-  const users = [
-    {
-      email: 'customer@test.com',
-      password: 'Password123!',
-      role: 'CUSTOMER',
-      profile: {
-        firstName: 'Ahmed',
-        lastName: 'Benali',
-        phone: '+212612345678',
-        address: '123 Rue Mohammed V',
-        city: 'Marrakech',
-        zipCode: '40000',
-      },
-    },
-    {
-      email: 'admin@test.com',
-      password: 'AdminPass123!',
-      role: 'ADMIN',
-      profile: {
-        firstName: 'Admin',
-        lastName: 'User',
-        phone: '+212612345679',
-        address: 'Admin Office',
-        city: 'Marrakech',
-        zipCode: '40000',
-      },
-    },
-    {
-      email: 'driver@test.com',
-      password: 'DriverPass123!',
-      role: 'DRIVER',
-      profile: {
-        firstName: 'Mohamed',
-        lastName: 'Driver',
-        phone: '+212612345680',
-        address: '456 Rue Gueliz',
-        city: 'Marrakech',
-        zipCode: '40000',
-      },
-    },
-    {
-      email: 'customer2@test.com',
-      password: 'Password123!',
-      role: 'CUSTOMER',
-      profile: {
-        firstName: 'Fatima',
-        lastName: 'Alaoui',
-        phone: '+212612345681',
-        address: '789 Rue Safi',
-        city: 'Fez',
-        zipCode: '30000',
-      },
-    },
-  ]
+  // Clear existing data
+  await prisma.productionBatch.deleteMany({})
+  await prisma.recipeIngredient.deleteMany({})
+  await prisma.recipe.deleteMany({})
+  await prisma.labStock.deleteMany({})
+  await prisma.labEmployee.deleteMany({})
+  await prisma.machine.deleteMany({})
+  await prisma.rawMaterial.deleteMany({})
+  await prisma.productionLab.deleteMany({})
 
-  for (const userData of users) {
-    const { email, password, role, profile } = userData
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
-    })
-
-    if (existingUser) {
-      console.log(`✓ User ${email} already exists`)
-      continue
-    }
-
-    // Hash password
-    const passwordHash = await bcrypt.hash(password, 10)
-
-    // Create user with profile
-    const user = await prisma.user.create({
+  // ============================================================================
+  // 1. CREATE LABS
+  // ============================================================================
+  console.log('Creating labs...')
+  const labs = await Promise.all([
+    prisma.productionLab.create({
       data: {
-        email,
-        passwordHash,
-        role: role as 'CUSTOMER' | 'ADMIN' | 'DRIVER',
-        profile: {
-          create: profile,
-        },
-        loyaltyCard:
-          role === 'CUSTOMER'
-            ? {
-                create: {
-                  points: 0,
-                  totalSpent: 0,
-                  tier: 'BRONZE',
-                },
-              }
-            : undefined,
+        name: 'Preparation Lab',
+        type: LabType.PREPARATION,
+        capacity: 10,
       },
-      include: {
-        profile: true,
-        loyaltyCard: true,
+    }),
+    prisma.productionLab.create({
+      data: {
+        name: 'Assembly Lab',
+        type: LabType.ASSEMBLY,
+        capacity: 8,
       },
-    })
+    }),
+    prisma.productionLab.create({
+      data: {
+        name: 'Finishing Lab',
+        type: LabType.FINISHING,
+        capacity: 6,
+      },
+    }),
+  ])
 
-    console.log(`✓ Created ${role} user: ${email}`)
-  }
+  console.log(`✓ Created ${labs.length} labs`)
 
-  // Summary
-  const totalUsers = await prisma.user.count()
-  const customerCount = await prisma.user.count({ where: { role: 'CUSTOMER' } })
-  const adminCount = await prisma.user.count({ where: { role: 'ADMIN' } })
-  const driverCount = await prisma.user.count({ where: { role: 'DRIVER' } })
+  // ============================================================================
+  // 2. CREATE EMPLOYEES
+  // ============================================================================
+  console.log('Creating employees...')
+  await Promise.all([
+    // Preparation Lab
+    prisma.labEmployee.create({
+      data: {
+        labId: labs[0].id,
+        name: 'Marie Dupont',
+        role: 'Boulanger',
+        availableHours: 40,
+      },
+    }),
+    prisma.labEmployee.create({
+      data: {
+        labId: labs[0].id,
+        name: 'Pierre Leclerc',
+        role: 'Assistant Boulanger',
+        availableHours: 35,
+      },
+    }),
+    // Assembly Lab
+    prisma.labEmployee.create({
+      data: {
+        labId: labs[1].id,
+        name: 'Sophie Bernard',
+        role: 'Pâtissier',
+        availableHours: 40,
+      },
+    }),
+    prisma.labEmployee.create({
+      data: {
+        labId: labs[1].id,
+        name: 'Claude Moreau',
+        role: 'Décorateur',
+        availableHours: 38,
+      },
+    }),
+    // Finishing Lab
+    prisma.labEmployee.create({
+      data: {
+        labId: labs[2].id,
+        name: 'Isabelle Garnier',
+        role: 'Finisseur',
+        availableHours: 40,
+      },
+    }),
+  ])
+  console.log('✓ Created 5 employees')
 
-  console.log('\n📊 Database Summary:')
-  console.log(`  Total Users: ${totalUsers}`)
-  console.log(`  Customers: ${customerCount}`)
-  console.log(`  Admins: ${adminCount}`)
-  console.log(`  Drivers: ${driverCount}`)
-  console.log('\n✅ Seeding complete!')
+  // ============================================================================
+  // 3. CREATE MACHINES
+  // ============================================================================
+  console.log('Creating machines...')
+  await Promise.all([
+    // Preparation Lab
+    prisma.machine.create({
+      data: {
+        labId: labs[0].id,
+        name: 'Four Principal',
+        type: 'Oven',
+        batchCapacity: 20,
+        cycleTimeMinutes: 45,
+        available: true,
+      },
+    }),
+    prisma.machine.create({
+      data: {
+        labId: labs[0].id,
+        name: 'Malaxeur Spiral',
+        type: 'Mixer',
+        batchCapacity: 50,
+        cycleTimeMinutes: 30,
+        available: true,
+      },
+    }),
+    // Assembly Lab
+    prisma.machine.create({
+      data: {
+        labId: labs[1].id,
+        name: 'Chambre Froide A',
+        type: 'Fridge',
+        batchCapacity: 100,
+        cycleTimeMinutes: 120,
+        available: true,
+      },
+    }),
+    prisma.machine.create({
+      data: {
+        labId: labs[1].id,
+        name: 'Étuve Garniture',
+        type: 'Oven',
+        batchCapacity: 30,
+        cycleTimeMinutes: 25,
+        available: true,
+      },
+    }),
+    // Finishing Lab
+    prisma.machine.create({
+      data: {
+        labId: labs[2].id,
+        name: 'Station Decoration',
+        type: 'Workstation',
+        batchCapacity: 15,
+        cycleTimeMinutes: 20,
+        available: true,
+      },
+    }),
+  ])
+  console.log('✓ Created 5 machines')
+
+  console.log('\n✅ Database seed completed successfully!')
 }
 
 main()
-  .then(async () => {
-    await prisma.$disconnect()
-  })
-  .catch(async (e) => {
-    console.error('❌ Seeding failed:', e)
-    await prisma.$disconnect()
+  .catch((e) => {
+    console.error('Seed failed:', e)
     process.exit(1)
+  })
+  .finally(async () => {
+    await prisma.$disconnect()
   })
