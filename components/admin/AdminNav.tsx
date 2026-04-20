@@ -20,9 +20,9 @@ const navSections: NavSection[] = [
   {
     title: 'Core',
     items: [
-      { label: 'Dashboard',  href: '/admin/dashboard',  icon: '📊' },
-      { label: 'Analytics',  href: '/admin/analytics',  icon: '📉' },
-      { label: 'Stock',      href: '/admin/stocks',     icon: '📦' },
+      { label: 'Dashboard',         href: '/admin/dashboard',  icon: '📊' },
+      { label: 'Analytics',         href: '/admin/analytics',  icon: '📉' },
+      { label: 'Finished Product Stock', href: '/admin/stocks',     icon: '📦' },
     ],
   },
   {
