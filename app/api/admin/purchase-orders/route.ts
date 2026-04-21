@@ -80,7 +80,11 @@ export const GET = withAdminAuth(async (req: NextRequest) => {
         where,
         include: {
           supplier: { select: { id: true, name: true } },
-          material: { select: { id: true, name: true, unit: true } },
+          items: {
+            include: {
+              material: { select: { id: true, name: true, unit: true } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip,
