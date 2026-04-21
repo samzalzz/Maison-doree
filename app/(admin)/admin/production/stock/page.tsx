@@ -679,19 +679,14 @@ function LabStockSection({
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
-                    {/* Delete Button */}
+                    {/* Delete Button - SIMPLE VERSION FOR TESTING */}
                     <button
                       type="button"
                       onClick={() => handleDeleteStock(s.id, s.materialId, s.material.name)}
-                      disabled={isDeletingId === s.id}
-                      className="flex-shrink-0 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
-                      title={`Delete ${s.material.name}`}
+                      className="flex-shrink-0 p-2 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                      title="Delete"
                     >
-                      {isDeletingId === s.id ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <X className="w-4 h-4" />
-                      )}
+                      ✕
                     </button>
                   </div>
                 </div>
@@ -699,28 +694,15 @@ function LabStockSection({
             })
           )}
 
-          {/* Add Material button - always visible when expanded */}
-          {onAddStock && stock.length > 0 && (
-            <div className="p-4 bg-green-50 border-t border-gray-200">
+          {/* Add Material button - SIMPLE VERSION FOR TESTING */}
+          {onAddStock && (
+            <div className="p-4 bg-blue-100 border-t border-gray-200">
               <button
                 type="button"
                 onClick={() => onAddStock(lab.id, lab.name)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
               >
-                <Plus className="w-4 h-4" />
-                Add More Material
-              </button>
-            </div>
-          )}
-          {onAddStock && stock.length === 0 && (
-            <div className="p-4 bg-green-50 border-t border-gray-200">
-              <button
-                type="button"
-                onClick={() => onAddStock(lab.id, lab.name)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add First Material
+                + Add Material
               </button>
             </div>
           )}
