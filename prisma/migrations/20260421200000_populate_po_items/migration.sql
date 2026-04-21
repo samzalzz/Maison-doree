@@ -1,20 +1,22 @@
 -- Data fix: Add items to existing purchase orders that were created before PurchaseOrderItem table existed
 -- This populates PurchaseOrderItem for any PO that has zero items
 
--- Step 1: Insert default items for purchase orders without items
--- Match materials to suppliers by type
+-- Get the first flour material to use for all orders
+WITH flour AS (
+  SELECT id FROM "RawMaterial" WHERE type ILIKE '%flour%' LIMIT 1
+)
 INSERT INTO "PurchaseOrderItem" (id, "poId", "materialId", quantity, "unitPrice", "lineTotal", "createdAt", "updatedAt")
 SELECT
-  'poi_' || substr(md5(random()::text), 1, 12),
+  'poi_' || gen_random_uuid()::text,
   po.id,
-  (SELECT id FROM "RawMaterial" WHERE type LIKE '%Flour%' LIMIT 1),
+  (SELECT id FROM flour),
   100,
   50.00,
   5000.00,
   NOW(),
   NOW()
-FROM "PurchaseOrder" po
+FROM "PurchaseOrder" po, flour
 WHERE NOT EXISTS (
   SELECT 1 FROM "PurchaseOrderItem" WHERE "poId" = po.id
 )
-ON CONFLICT DO NOTHING;
+  AND (SELECT id FROM flour) IS NOT NULL;
