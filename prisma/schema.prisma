@@ -504,7 +504,7 @@ model RawMaterial {
   usedAsIntermediateIn       RecipeIngredient[]        @relation("IntermediateIngredients")
   labStocks                  LabStock[]
   transferSuggestions        TransferSuggestion[]
-  purchaseOrders             PurchaseOrder[]
+  purchaseOrderItems         PurchaseOrderItem[] // Line items in purchase orders
   qualityInspections         QualityInspection[]
   recipeVersionIngredients   RecipeVersionIngredient[] @relation("RawMaterialVersion")
   recipeVersionIntermediates RecipeVersionIngredient[] @relation("IntermediateVersionUsage")
@@ -670,20 +670,19 @@ model Supplier {
   @@index([name])
 }
 
-// P4-3. PurchaseOrder — an order placed with a supplier for a raw material
+// P4-3. PurchaseOrder — an order placed with a supplier (can contain multiple materials)
 model PurchaseOrder {
   id         String   @id @default(cuid())
   poNumber   String   @unique
   supplier   Supplier @relation(fields: [supplierId], references: [id], onDelete: Restrict)
   supplierId String
 
-  material   RawMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
-  materialId String
+  // Line items: one purchase order can have multiple materials
+  items PurchaseOrderItem[]
 
-  quantity     Decimal  @db.Decimal(10, 2)
   deliveryDate DateTime
   status       String // "pending" | "ordered" | "delivered" | "cancelled"
-  cost         Decimal? @db.Decimal(12, 2)
+  totalCost    Decimal? @db.Decimal(12, 2) // Sum of all line item costs
 
   createdAt   DateTime  @default(now())
   deliveredAt DateTime?
@@ -693,14 +692,38 @@ model PurchaseOrder {
   sentAt               DateTime?
   expectedDeliveryDate DateTime?
   actualDeliveryDate   DateTime?
-  receivedQuantity     Decimal? @db.Decimal(10, 2)
   qualityInspectionId  String?
 
   @@index([supplierId])
-  @@index([materialId])
   @@index([status])
   @@index([deliveryDate])
   @@index([approvedBy])
+}
+
+// P4-3b. PurchaseOrderItem — a line item in a purchase order
+model PurchaseOrderItem {
+  id         String   @id @default(cuid())
+  poId       String
+  po         PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+
+  material   RawMaterial @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  materialId String
+
+  quantity     Decimal  @db.Decimal(10, 2)
+  unitPrice    Decimal  @db.Decimal(12, 4) // Price per unit
+  lineTotal    Decimal  @db.Decimal(12, 2) // quantity * unitPrice
+
+  // Delivery tracking per item
+  deliveredQuantity Decimal? @db.Decimal(10, 2)
+  receivedQuantity  Decimal? @db.Decimal(10, 2)
+  qualityInspectionId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([poId, materialId]) // Can't have duplicate materials in same PO
+  @@index([poId])
+  @@index([materialId])
 }
 
 // ============================================================================
