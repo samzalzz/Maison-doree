@@ -12,8 +12,8 @@
   },
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate deploy --skip-generate && next build",
-    "start": "next start",
+    "build": "next build",
+    "start": "prisma migrate deploy --skip-generate && next start",
     "lint": "next lint",
     "test": "jest",
     "test:watch": "jest --watch",
