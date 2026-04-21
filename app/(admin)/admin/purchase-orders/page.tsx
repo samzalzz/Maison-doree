@@ -25,17 +25,23 @@ import {
 
 type PoStatus = 'pending' | 'ordered' | 'delivered' | 'cancelled'
 
+interface PurchaseOrderApiItem {
+  materialId: string
+  material: { id: string; name: string; unit: string }
+  quantity: number
+  unitPrice: number
+  lineTotal: number
+}
+
 interface PurchaseOrder {
   id: string
   poNumber: string
   supplierId: string
   supplier: { id: string; name: string }
-  materialId: string
-  material: { id: string; name: string; unit: string }
-  quantity: number
+  items: PurchaseOrderApiItem[]
+  totalCost: number
   deliveryDate: string
   status: PoStatus
-  cost: number | null
   createdAt: string
   deliveredAt: string | null
 }
@@ -525,8 +531,6 @@ function ReceiveDeliveryModal({
   const [labError, setLabError] = useState('')
 
   const selectedLab = labs.find((l) => l.id === labId)
-  const qty = Number(order.quantity)
-  const unit = order.material.unit
 
   const handleDeliver = async () => {
     if (!labId) {
@@ -559,7 +563,7 @@ function ReceiveDeliveryModal({
 
       success({
         title: 'Delivery Received',
-        message: `Stock increased by ${qty.toLocaleString()} ${unit} in ${selectedLab!.name}.`,
+        message: `${order.items.length} item${order.items.length !== 1 ? 's' : ''} received and added to ${selectedLab!.name}.`,
       })
       onDelivered()
     } finally {
@@ -583,22 +587,23 @@ function ReceiveDeliveryModal({
 
         <div className="p-6 space-y-5">
           {/* Order summary */}
-          <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1.5">
+          <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-2">
             <div className="flex justify-between">
               <span className="text-gray-500">Supplier</span>
               <span className="font-medium text-gray-900">{order.supplier.name}</span>
             </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Material</span>
-              <span className="font-medium text-gray-900">
-                {order.material.name}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-500">Quantity to receive</span>
-              <span className="font-bold text-amber-700">
-                {qty.toLocaleString()} {unit}
-              </span>
+            <div>
+              <span className="text-gray-500 block mb-1.5">Items to receive</span>
+              <div className="space-y-1">
+                {order.items.map((item, i) => (
+                  <div key={i} className="flex justify-between text-xs">
+                    <span className="text-gray-600">{item.material.name}</span>
+                    <span className="font-bold text-amber-700">
+                      {Number(item.quantity).toLocaleString()} {item.material.unit}
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -635,7 +640,7 @@ function ReceiveDeliveryModal({
               <PackageCheck className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
               <p className="text-sm text-green-800">
                 <span className="font-semibold">
-                  {qty.toLocaleString()} {unit}
+                  {order.items.length} item{order.items.length !== 1 ? 's' : ''}
                 </span>{' '}
                 will be added to{' '}
                 <span className="font-semibold">{selectedLab.name}</span> stock
@@ -645,11 +650,10 @@ function ReceiveDeliveryModal({
             <div className="flex items-start gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
               <FlaskConical className="w-5 h-5 text-blue-500 mt-0.5 shrink-0" />
               <p className="text-sm text-blue-700">
-                Select a lab above to see where{' '}
+                Select a lab above to receive{' '}
                 <span className="font-semibold">
-                  {qty.toLocaleString()} {unit}
-                </span>{' '}
-                of <span className="font-semibold">{order.material.name}</span> will be added.
+                  {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+                </span>.
               </p>
             </div>
           )}
@@ -747,14 +751,23 @@ function CancelConfirmModal({ order, onClose, onConfirmed }: CancelConfirmModalP
           Are you sure you want to cancel{' '}
           <span className="font-bold text-gray-900 font-mono">{order.poNumber}</span>?
         </p>
-        <p className="text-sm text-gray-500 mb-6">
-          Order for{' '}
-          <span className="font-medium text-gray-700">
-            {order.quantity.toLocaleString()} {order.material.unit}
-          </span>{' '}
-          of <span className="font-medium text-gray-700">{order.material.name}</span> from{' '}
-          <span className="font-medium text-gray-700">{order.supplier.name}</span>.
-        </p>
+        <div className="text-sm text-gray-500 mb-6 space-y-1">
+          <p>
+            Order contains{' '}
+            <span className="font-medium text-gray-700">
+              {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+            </span>{' '}
+            from <span className="font-medium text-gray-700">{order.supplier.name}</span>:
+          </p>
+          <ul className="list-disc list-inside text-xs text-gray-600 space-y-0.5">
+            {order.items.map((item, i) => (
+              <li key={i}>
+                {Number(item.quantity).toLocaleString()} {item.material.unit} of{' '}
+                {item.material.name}
+              </li>
+            ))}
+          </ul>
+        </div>
 
         <div className="flex gap-3">
           <button
@@ -914,10 +927,13 @@ export default function AdminPurchaseOrdersPage() {
   const filteredOrders = search.trim()
     ? orders.filter((o) => {
         const q = search.toLowerCase()
+        const materialMatch = o.items.some((item) =>
+          item.material.name.toLowerCase().includes(q)
+        )
         return (
           o.poNumber.toLowerCase().includes(q) ||
           o.supplier.name.toLowerCase().includes(q) ||
-          o.material.name.toLowerCase().includes(q)
+          materialMatch
         )
       })
     : orders
@@ -1072,16 +1088,40 @@ export default function AdminPurchaseOrdersPage() {
 
                       {/* Material */}
                       <td className="px-4 py-3">
-                        <span className="text-gray-900">{order.material.name}</span>
-                        <span className="text-gray-400 text-xs ml-1">
-                          ({order.material.unit})
-                        </span>
+                        {order.items.length === 1 ? (
+                          <>
+                            <span className="text-gray-900">{order.items[0].material.name}</span>
+                            <span className="text-gray-400 text-xs ml-1">
+                              ({order.items[0].material.unit})
+                            </span>
+                          </>
+                        ) : (
+                          <div className="text-sm">
+                            <div className="text-gray-900 font-medium">{order.items.length} materials</div>
+                            <div className="text-gray-500 text-xs mt-1">
+                              {order.items.slice(0, 2).map((item) => item.material.name).join(', ')}
+                              {order.items.length > 2 && '...'}
+                            </div>
+                          </div>
+                        )}
                       </td>
 
                       {/* Quantity */}
                       <td className="px-4 py-3 text-gray-900 font-medium tabular-nums">
-                        {Number(order.quantity).toLocaleString()}{' '}
-                        <span className="text-gray-400 text-xs">{order.material.unit}</span>
+                        {order.items.length === 1 ? (
+                          <>
+                            {Number(order.items[0].quantity).toLocaleString()}{' '}
+                            <span className="text-gray-400 text-xs">{order.items[0].material.unit}</span>
+                          </>
+                        ) : (
+                          <div className="text-xs text-gray-600">
+                            {order.items.map((item, i) => (
+                              <div key={i}>
+                                {Number(item.quantity).toLocaleString()} {item.material.unit}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </td>
 
                       {/* Delivery Date */}
@@ -1096,9 +1136,9 @@ export default function AdminPurchaseOrdersPage() {
 
                       {/* Cost */}
                       <td className="px-4 py-3">
-                        {order.cost !== null ? (
+                        {order.totalCost !== null && order.totalCost !== undefined ? (
                           <span className="font-semibold text-amber-700">
-                            {Number(order.cost).toFixed(2)} MAD
+                            {Number(order.totalCost).toFixed(2)} MAD
                           </span>
                         ) : (
                           <span className="text-gray-400 text-xs">—</span>
