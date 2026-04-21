@@ -20,9 +20,9 @@ const navSections: NavSection[] = [
   {
     title: 'Core',
     items: [
-      { label: 'Dashboard',         href: '/admin/dashboard',  icon: '📊' },
-      { label: 'Analytics',         href: '/admin/analytics',  icon: '📉' },
-      { label: 'Finished Product Stock', href: '/admin/stocks',     icon: '📦' },
+      { label: 'Dashboard',      href: '/admin/dashboard',  icon: '📊' },
+      { label: 'Analytics',      href: '/admin/analytics',  icon: '📉' },
+      { label: 'Product Inventory', href: '/admin/stocks',     icon: '📦' },
     ],
   },
   {
@@ -36,28 +36,17 @@ const navSections: NavSection[] = [
   {
     title: 'Production Management',
     items: [
-      { label: 'Labs',            href: '/admin/labs',            icon: '🏭' },
-      { label: 'Machines',        href: '/admin/machines',        icon: '⚙️' },
-      { label: 'Recipes',         href: '/admin/recipes',         icon: '👨‍🍳' },
-      { label: 'Raw Materials',   href: '/admin/raw-materials',   icon: '📦' },
-      { label: 'Supplier Accounts', href: '/admin/suppliers',       icon: '🚚' },
-      { label: 'Orders',          href: '/admin/purchase-orders', icon: '📋' },
-    ],
-  },
-  {
-    title: 'Production',
-    items: [
-      { label: 'Dashboard',  href: '/admin/production/dashboard',  icon: '📊' },
-      { label: 'Batches',    href: '/admin/production/batches',    icon: '📋' },
-      { label: 'Stock',      href: '/admin/production/stock',      icon: '📦' },
-      { label: 'Forecast',   href: '/admin/production/forecast',   icon: '📅' },
-      { label: 'Workflows',  href: '/admin/production/workflows',  icon: '⚙️' },
-    ],
-  },
-  {
-    title: 'Supplier Management',
-    items: [
-      { label: 'Suppliers', href: '/supplier/suppliers', icon: '🚚' },
+      { label: 'Dashboard',        href: '/admin/production/dashboard',  icon: '📊' },
+      { label: 'Labs',             href: '/admin/labs',                  icon: '🏭' },
+      { label: 'Machines',         href: '/admin/machines',              icon: '⚙️' },
+      { label: 'Recipes',          href: '/admin/recipes',               icon: '👨‍🍳' },
+      { label: 'Raw Materials',    href: '/admin/raw-materials',         icon: '📦' },
+      { label: 'Batches',          href: '/admin/production/batches',    icon: '📋' },
+      { label: 'Material Stock',   href: '/admin/production/stock',      icon: '📦' },
+      { label: 'Demand Forecast',  href: '/admin/production/forecast',   icon: '📅' },
+      { label: 'Purchase Orders',  href: '/admin/purchase-orders',       icon: '📋' },
+      { label: 'Suppliers',        href: '/admin/suppliers',             icon: '🚚' },
+      { label: 'Workflows',        href: '/admin/production/workflows',  icon: '⚙️' },
     ],
   },
   {
