@@ -44,7 +44,7 @@ async function runMigrations() {
   return new Promise((resolve) => {
     console.log('[Startup] Running database migrations...');
 
-    const migrationProcess = spawn('npx', ['prisma', 'migrate', 'deploy', '--skip-generate'], {
+    const migrationProcess = spawn('npx', ['prisma', 'migrate', 'deploy'], {
       stdio: 'inherit',
       shell: true,
       timeout: 30000,
