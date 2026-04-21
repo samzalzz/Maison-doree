@@ -16,6 +16,39 @@ const path = require('path');
 
 let migrationsAttempted = false;
 
+// First, clean up failed migrations
+async function cleanupFailedMigrations() {
+  return new Promise((resolve) => {
+    console.log('[Startup] Checking for failed migrations to clean up...');
+
+    const resolveProcess = spawn('npx', ['prisma', 'migrate', 'resolve', '--rolled-back'], {
+      stdio: 'inherit',
+      shell: true,
+    });
+
+    resolveProcess.on('close', (code) => {
+      if (code === 0) {
+        console.log('[Startup] ✓ Migration cleanup completed');
+        resolve(true);
+      } else {
+        console.log('[Startup] ℹ No failed migrations to clean up (or cleanup not needed)');
+        resolve(true); // Don't fail on this - it's optional
+      }
+    });
+
+    resolveProcess.on('error', (err) => {
+      console.log('[Startup] ℹ Migration cleanup skipped (not critical)');
+      resolve(true); // Don't fail on this
+    });
+
+    // Timeout after 10 seconds
+    setTimeout(() => {
+      console.log('[Startup] Cleanup timeout - continuing anyway');
+      resolve(true);
+    }, 10000);
+  });
+}
+
 // Run migrations with retry logic
 async function runMigrations() {
   return new Promise((resolve) => {
@@ -82,6 +115,9 @@ async function main() {
   console.log('[Startup] Maison Dorée Production Management System');
   console.log('[Startup] Node environment:', process.env.NODE_ENV || 'not set');
   console.log('[Startup] Database URL:', process.env.DATABASE_URL ? '***configured***' : '⚠ NOT SET');
+
+  // Clean up any failed migrations first
+  await cleanupFailedMigrations();
 
   // Attempt migrations
   const migrationsSuccess = await runMigrations();
