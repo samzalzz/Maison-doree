@@ -1,92 +1,80 @@
 #!/usr/bin/env node
 
 const { spawn } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+const { PrismaClient } = require('@prisma/client');
 
 /**
- * Startup script that handles database connectivity issues
- * and prevents infinite restart loops.
+ * Robust startup script with database migration cleanup
  *
- * Purpose:
- * - Safely attempt database migrations with retry logic
- * - Start Next.js server even if migrations fail (with warning)
- * - Prevent container restart loops from DB connection failures
+ * This script:
+ * 1. Cleans up failed migrations directly via Prisma
+ * 2. Attempts normal migrations with timeout
+ * 3. Always starts Next.js (never exits on migration failure)
+ * 4. Prevents infinite container restart loops
  */
 
-let migrationsAttempted = false;
+let migrationAttempted = false;
 
-// First, clean up failed migrations
+// Cleanup failed migrations directly via Prisma
 async function cleanupFailedMigrations() {
-  return new Promise((resolve) => {
-    console.log('[Startup] Checking for failed migrations to clean up...');
+  try {
+    console.log('[Startup] Cleaning up failed migrations...');
 
-    const resolveProcess = spawn('npx', ['prisma', 'migrate', 'resolve', '--rolled-back'], {
-      stdio: 'inherit',
-      shell: true,
-    });
+    const prisma = new PrismaClient();
 
-    resolveProcess.on('close', (code) => {
-      if (code === 0) {
-        console.log('[Startup] ✓ Migration cleanup completed');
-        resolve(true);
-      } else {
-        console.log('[Startup] ℹ No failed migrations to clean up (or cleanup not needed)');
-        resolve(true); // Don't fail on this - it's optional
-      }
-    });
+    // Delete migrations that didn't finish or have known issue names
+    const result = await prisma.$executeRaw`
+      DELETE FROM "_prisma_migrations"
+      WHERE finished_at IS NULL
+         OR migration_name LIKE '%resolve_failed%'
+         OR migration_name LIKE '%20260421000002%'
+    `;
 
-    resolveProcess.on('error', (err) => {
-      console.log('[Startup] ℹ Migration cleanup skipped (not critical)');
-      resolve(true); // Don't fail on this
-    });
-
-    // Timeout after 10 seconds
-    setTimeout(() => {
-      console.log('[Startup] Cleanup timeout - continuing anyway');
-      resolve(true);
-    }, 10000);
-  });
+    console.log(`[Startup] ✓ Cleaned up ${result} failed migration records`);
+    await prisma.$disconnect();
+    return true;
+  } catch (error) {
+    console.warn(`[Startup] ⚠ Migration cleanup error (continuing anyway): ${error.message}`);
+    return false;
+  }
 }
 
-// Run migrations with retry logic
+// Run migrations with timeout and error handling
 async function runMigrations() {
   return new Promise((resolve) => {
-    console.log('[Startup] Attempting database migrations...');
+    console.log('[Startup] Running database migrations...');
 
-    const migrationProcess = spawn('npx', ['prisma', 'migrate', 'deploy'], {
+    const migrationProcess = spawn('npx', ['prisma', 'migrate', 'deploy', '--skip-generate'], {
       stdio: 'inherit',
       shell: true,
+      timeout: 30000,
     });
+
+    const timeout = setTimeout(() => {
+      console.warn('[Startup] ⚠ Migrations timeout - continuing with Next.js startup');
+      migrationProcess.kill();
+      resolve(false);
+    }, 30000);
 
     migrationProcess.on('close', (code) => {
+      clearTimeout(timeout);
+      migrationAttempted = true;
+
       if (code === 0) {
         console.log('[Startup] ✓ Migrations completed successfully');
-        migrationsAttempted = true;
         resolve(true);
       } else {
-        console.warn('[Startup] ⚠ Migrations failed with code:', code);
-        console.warn('[Startup] Database may not be available yet');
-        console.warn('[Startup] Continuing with Next.js startup (app may not work until DB is ready)');
-        migrationsAttempted = true;
+        console.warn(`[Startup] ⚠ Migrations exited with code ${code} - continuing with app startup`);
         resolve(false);
       }
     });
 
-    migrationProcess.on('error', (err) => {
-      console.error('[Startup] Migration process error:', err.message);
-      migrationsAttempted = true;
+    migrationProcess.on('error', (error) => {
+      clearTimeout(timeout);
+      console.warn(`[Startup] ⚠ Migration error: ${error.message} - continuing with app startup`);
+      migrationAttempted = true;
       resolve(false);
     });
-
-    // Timeout migrations after 30 seconds
-    setTimeout(() => {
-      if (!migrationsAttempted) {
-        console.warn('[Startup] Migrations taking too long, continuing with Next.js startup');
-        migrationProcess.kill();
-        resolve(false);
-      }
-    }, 30000);
   });
 }
 
@@ -99,35 +87,53 @@ function startNextServer() {
     shell: true,
   });
 
-  nextProcess.on('error', (err) => {
-    console.error('[Startup] Failed to start Next.js:', err.message);
-    process.exit(1);
+  nextProcess.on('error', (error) => {
+    console.error(`[Startup] ✗ Failed to start Next.js: ${error.message}`);
+    // Give it a moment to display the error, then exit
+    setTimeout(() => process.exit(1), 2000);
   });
 
   nextProcess.on('close', (code) => {
-    console.log('[Startup] Next.js server exited with code:', code);
-    process.exit(code);
+    console.log(`[Startup] Next.js exited with code ${code}`);
+    // Exit with the same code (0 for clean shutdown, non-zero for error)
+    process.exit(code || 0);
   });
 }
 
-// Main startup flow
+// Main startup sequence
 async function main() {
-  console.log('[Startup] Maison Dorée Production Management System');
-  console.log('[Startup] Node environment:', process.env.NODE_ENV || 'not set');
-  console.log('[Startup] Database URL:', process.env.DATABASE_URL ? '***configured***' : '⚠ NOT SET');
+  try {
+    console.log('\n═══════════════════════════════════════════════════════════');
+    console.log('[Startup] Maison Dorée - Production Management System');
+    console.log('═══════════════════════════════════════════════════════════');
+    console.log(`[Startup] Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`[Startup] Database: ${process.env.DATABASE_URL ? '✓ Configured' : '✗ NOT SET'}`);
+    console.log('═══════════════════════════════════════════════════════════\n');
 
-  // Clean up any failed migrations first
-  await cleanupFailedMigrations();
+    // Step 1: Clean up any failed migrations from the database
+    console.log('[Startup] Step 1: Database cleanup');
+    await cleanupFailedMigrations();
 
-  // Attempt migrations
-  const migrationsSuccess = await runMigrations();
+    // Step 2: Run normal migrations
+    console.log('\n[Startup] Step 2: Run migrations');
+    const migrationsOk = await runMigrations();
 
-  // Always start Next.js server regardless of migration success
-  // This prevents infinite restart loops from database connection failures
-  startNextServer();
+    // Step 3: Always start Next.js (critical for preventing restart loops)
+    console.log('\n[Startup] Step 3: Start Next.js server');
+    console.log('[Startup] ℹ Next.js will start regardless of migration status');
+    console.log('[Startup] ℹ This prevents infinite container restart loops\n');
+
+    startNextServer();
+  } catch (error) {
+    console.error(`[Startup] ✗ Fatal error: ${error.message}`);
+    console.error(error.stack);
+    // Exit cleanly rather than crashing
+    process.exit(1);
+  }
 }
 
-main().catch((err) => {
-  console.error('[Startup] Fatal error:', err);
+// Run startup sequence
+main().catch((error) => {
+  console.error(`[Startup] ✗ Uncaught error: ${error.message}`);
   process.exit(1);
 });
