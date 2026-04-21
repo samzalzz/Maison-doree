@@ -60,22 +60,28 @@ interface Lab {
   type: string
 }
 
-interface CreateFormData {
-  supplierId: string
+interface PurchaseOrderItem {
   materialId: string
   quantity: string
+  unitPrice: string
+}
+
+interface CreateFormData {
+  supplierId: string
+  items: PurchaseOrderItem[]
   deliveryDate: string
-  cost: string
-  paymentMethod: string
 }
 
 const EMPTY_CREATE_FORM: CreateFormData = {
   supplierId: '',
+  items: [{ materialId: '', quantity: '', unitPrice: '' }],
+  deliveryDate: '',
+}
+
+const EMPTY_ITEM: PurchaseOrderItem = {
   materialId: '',
   quantity: '',
-  deliveryDate: '',
-  cost: '',
-  paymentMethod: '',
+  unitPrice: '',
 }
 
 const PAYMENT_METHODS = [
@@ -167,15 +173,58 @@ function CreatePurchaseOrderModal({
     })
   }
 
+  function setItemField(index: number, field: keyof PurchaseOrderItem, value: string) {
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
+    }))
+  }
+
+  function addItem() {
+    setForm((prev) => ({
+      ...prev,
+      items: [...prev.items, { ...EMPTY_ITEM }],
+    }))
+  }
+
+  function removeItem(index: number) {
+    if (form.items.length === 1) return // Must have at least 1 item
+    setForm((prev) => ({
+      ...prev,
+      items: prev.items.filter((_, i) => i !== index),
+    }))
+  }
+
   function validate(): boolean {
     const e: Record<string, string> = {}
 
     if (!form.supplierId) e.supplierId = 'Supplier is required.'
-    if (!form.materialId) e.materialId = 'Material is required.'
 
-    const qty = parseFloat(form.quantity)
-    if (!form.quantity || isNaN(qty) || qty <= 0) {
-      e.quantity = 'Quantity must be a positive number.'
+    if (form.items.length === 0) {
+      e.items = 'At least one item is required.'
+    } else {
+      form.items.forEach((item, index) => {
+        if (!item.materialId) {
+          e[`item_${index}_material`] = 'Material is required.'
+        }
+
+        const qty = parseFloat(item.quantity)
+        if (!item.quantity || isNaN(qty) || qty <= 0) {
+          e[`item_${index}_quantity`] = 'Quantity must be a positive number.'
+        }
+
+        const price = parseFloat(item.unitPrice)
+        if (!item.unitPrice || isNaN(price) || price <= 0) {
+          e[`item_${index}_price`] = 'Unit price must be a positive number.'
+        }
+      })
+
+      // Check for duplicate materials
+      const materialIds = form.items.map((item) => item.materialId).filter(Boolean)
+      const uniqueIds = new Set(materialIds)
+      if (materialIds.length !== uniqueIds.size) {
+        e.items = 'Duplicate materials in order - select different materials for each item.'
+      }
     }
 
     if (!form.deliveryDate) {
@@ -184,13 +233,6 @@ function CreatePurchaseOrderModal({
       const deliveryMs = new Date(form.deliveryDate).getTime()
       if (deliveryMs <= Date.now()) {
         e.deliveryDate = 'Delivery date must be in the future.'
-      }
-    }
-
-    if (form.cost) {
-      const cost = parseFloat(form.cost)
-      if (isNaN(cost) || cost <= 0) {
-        e.cost = 'Cost must be a positive number if provided.'
       }
     }
 
@@ -204,14 +246,14 @@ function CreatePurchaseOrderModal({
 
     setIsSaving(true)
     try {
-      const payload: Record<string, unknown> = {
+      const payload = {
         supplierId: form.supplierId,
-        materialId: form.materialId,
-        quantity: parseFloat(form.quantity),
+        items: form.items.map((item) => ({
+          materialId: item.materialId,
+          quantity: parseFloat(item.quantity),
+          unitPrice: parseFloat(item.unitPrice),
+        })),
         deliveryDate: new Date(form.deliveryDate).toISOString(),
-      }
-      if (form.cost) {
-        payload.cost = parseFloat(form.cost)
       }
 
       const res = await fetch('/api/admin/purchase-orders', {
@@ -232,7 +274,7 @@ function CreatePurchaseOrderModal({
 
       success({
         title: 'Order Created',
-        message: `Purchase order ${json.data.poNumber} has been created.`,
+        message: `Purchase order ${json.data.poNumber} has been created with ${json.data.items?.length ?? 1} item(s).`,
       })
       onSaved()
     } finally {
@@ -278,78 +320,116 @@ function CreatePurchaseOrderModal({
             )}
           </div>
 
-          {/* Material */}
+          {/* Order Items */}
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">
-              Raw Material <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={form.materialId}
-              onChange={(e) => setField('materialId', e.target.value)}
-              className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                errors.materialId ? 'border-red-400' : 'border-gray-300'
-              }`}
-            >
-              <option value="">Select a material...</option>
-              {materials.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name} ({m.unit}) — {m.type}
-                </option>
-              ))}
-            </select>
-            {errors.materialId && (
-              <p className="text-xs text-red-600 mt-1">{errors.materialId}</p>
-            )}
-          </div>
-
-          {/* Quantity & Cost */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Quantity <span className="text-red-500">*</span>
+            <div className="flex items-center justify-between mb-3">
+              <label className="block text-sm font-semibold text-gray-700">
+                Order Items <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <input
-                  type="number"
-                  value={form.quantity}
-                  onChange={(e) => setField('quantity', e.target.value)}
-                  placeholder="0"
-                  min="0.01"
-                  step="0.01"
-                  className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                    errors.quantity ? 'border-red-400' : 'border-gray-300'
-                  }`}
-                />
-                {selectedMaterial && (
-                  <span className="absolute right-3 inset-y-0 flex items-center text-gray-500 text-xs pointer-events-none">
-                    {selectedMaterial.unit}
-                  </span>
-                )}
-              </div>
-              {errors.quantity && (
-                <p className="text-xs text-red-600 mt-1">{errors.quantity}</p>
-              )}
+              <button
+                type="button"
+                onClick={addItem}
+                disabled={form.items.length >= materials.length}
+                title={form.items.length >= materials.length ? 'All materials selected' : 'Add another item'}
+                className="text-xs px-3 py-1 bg-amber-100 text-amber-700 rounded hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                <Plus className="w-3 h-3 inline mr-1" /> Add Item
+              </button>
             </div>
 
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-1">
-                Total Cost (MAD)
-                <span className="text-gray-400 font-normal text-xs ml-1">(optional)</span>
-              </label>
-              <input
-                type="number"
-                value={form.cost}
-                onChange={(e) => setField('cost', e.target.value)}
-                placeholder="0.00"
-                min="0.01"
-                step="0.01"
-                className={`w-full px-4 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
-                  errors.cost ? 'border-red-400' : 'border-gray-300'
-                }`}
-              />
-              {errors.cost && (
-                <p className="text-xs text-red-600 mt-1">{errors.cost}</p>
-              )}
+            {errors.items && (
+              <p className="text-xs text-red-600 mb-2">{errors.items}</p>
+            )}
+
+            <div className="space-y-3 bg-gray-50 p-3 rounded-lg">
+              {form.items.map((item, idx) => {
+                const selectedMaterial = materials.find((m) => m.id === item.materialId)
+                const usedMaterialIds = form.items.map((i) => i.materialId).filter(Boolean)
+                const availableMaterials = materials.filter(
+                  (m) => !usedMaterialIds.includes(m.id) || m.id === item.materialId
+                )
+                const lineTotal = parseFloat(item.quantity) * parseFloat(item.unitPrice) || 0
+
+                return (
+                  <div key={idx} className="bg-white p-3 rounded border border-gray-200">
+                    {/* Material Selection */}
+                    <select
+                      value={item.materialId}
+                      onChange={(e) => setItemField(idx, 'materialId', e.target.value)}
+                      className={`w-full px-3 py-2 border rounded text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                        errors[`item_${idx}_material`] ? 'border-red-400' : 'border-gray-300'
+                      }`}
+                    >
+                      <option value="">Select material...</option>
+                      {availableMaterials.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.unit})
+                        </option>
+                      ))}
+                    </select>
+                    {errors[`item_${idx}_material`] && (
+                      <p className="text-xs text-red-600 mb-2">{errors[`item_${idx}_material`]}</p>
+                    )}
+
+                    {/* Quantity & Unit Price */}
+                    <div className="grid grid-cols-3 gap-2 mb-2">
+                      <div>
+                        <label className="text-xs font-semibold text-gray-600 block mb-1">Qty</label>
+                        <input
+                          type="number"
+                          value={item.quantity}
+                          onChange={(e) => setItemField(idx, 'quantity', e.target.value)}
+                          placeholder="0"
+                          min="0.01"
+                          step="0.01"
+                          className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                            errors[`item_${idx}_quantity`] ? 'border-red-400' : 'border-gray-300'
+                          }`}
+                        />
+                        {errors[`item_${idx}_quantity`] && (
+                          <p className="text-xs text-red-600 mt-0.5">{errors[`item_${idx}_quantity`]}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-gray-600 block mb-1">Unit Price</label>
+                        <input
+                          type="number"
+                          value={item.unitPrice}
+                          onChange={(e) => setItemField(idx, 'unitPrice', e.target.value)}
+                          placeholder="0.00"
+                          min="0.01"
+                          step="0.01"
+                          className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
+                            errors[`item_${idx}_price`] ? 'border-red-400' : 'border-gray-300'
+                          }`}
+                        />
+                        {errors[`item_${idx}_price`] && (
+                          <p className="text-xs text-red-600 mt-0.5">{errors[`item_${idx}_price`]}</p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="text-xs font-semibold text-gray-600 block mb-1">Total</label>
+                        <div className="px-2 py-1 bg-gray-100 rounded text-sm font-medium text-gray-700">
+                          {lineTotal.toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Remove Button */}
+                    {form.items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeItem(idx)}
+                        className="w-full text-xs px-2 py-1 text-red-600 hover:bg-red-50 rounded transition-colors flex items-center justify-center gap-1"
+                      >
+                        <XCircle className="w-3 h-3" /> Remove Item
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </div>
 
