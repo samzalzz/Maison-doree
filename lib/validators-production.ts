@@ -608,7 +608,64 @@ export type UpdateSupplierInput = z.infer<typeof UpdateSupplierSchema>
 
 // --- PurchaseOrder ---
 
+// Line item in a purchase order
+export const CreatePurchaseOrderItemSchema = z.object({
+  materialId: z
+    .string()
+    .cuid('materialId must be a valid CUID'),
+  quantity: z
+    .number()
+    .positive('Quantity must be positive')
+    .describe('Quantity to order'),
+  unitPrice: z
+    .number()
+    .positive('Unit price must be positive')
+    .describe('Price per unit'),
+})
+
+export type CreatePurchaseOrderItemInput = z.infer<typeof CreatePurchaseOrderItemSchema>
+
+// Multi-item purchase order (NEW SCHEMA)
 export const CreatePurchaseOrderSchema = z
+  .object({
+    supplierId: z
+      .string()
+      .cuid('supplierId must be a valid CUID'),
+    items: z
+      .array(CreatePurchaseOrderItemSchema)
+      .min(1, 'At least one item is required')
+      .describe('Line items to order from the supplier'),
+    deliveryDate: z
+      .string()
+      .datetime({ message: 'deliveryDate must be a valid ISO date string' })
+      .describe('Expected delivery date (must be in the future)'),
+  })
+  .superRefine((data, ctx) => {
+    if (new Date(data.deliveryDate) <= new Date()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'deliveryDate must be in the future',
+        path: ['deliveryDate'],
+      })
+    }
+    // Check for duplicate materials in items
+    const materialIds = new Set<string>()
+    data.items.forEach((item, index) => {
+      if (materialIds.has(item.materialId)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Duplicate material in items',
+          path: ['items', index, 'materialId'],
+        })
+      }
+      materialIds.add(item.materialId)
+    })
+  })
+
+export type CreatePurchaseOrderInput = z.infer<typeof CreatePurchaseOrderSchema>
+
+// DEPRECATED: Old single-item schema for backwards compatibility
+export const CreatePurchaseOrderSingleSchema = z
   .object({
     supplierId: z
       .string()
@@ -639,7 +696,7 @@ export const CreatePurchaseOrderSchema = z
     }
   })
 
-export type CreatePurchaseOrderInput = z.infer<typeof CreatePurchaseOrderSchema>
+export type CreatePurchaseOrderSingleInput = z.infer<typeof CreatePurchaseOrderSingleSchema>
 
 export const UpdatePurchaseOrderStatusSchema = z.object({
   status: z

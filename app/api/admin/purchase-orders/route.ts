@@ -16,7 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db/prisma'
 import { withAdminAuth } from '@/lib/auth-middleware'
-import { CreatePurchaseOrderSchema } from '@/lib/validators-production'
+import { CreatePurchaseOrderSchema, CreatePurchaseOrderSingleSchema } from '@/lib/validators-production'
 import { ZodError } from 'zod'
 
 const VALID_PO_STATUSES = ['pending', 'ordered', 'delivered', 'cancelled'] as const
@@ -121,7 +121,33 @@ export const POST = withAdminAuth(async (req: NextRequest) => {
       )
     }
 
-    const input = CreatePurchaseOrderSchema.parse(body)
+    // Try parsing with new multi-item schema first, then fallback to single-item for backwards compatibility
+    let input: any
+    let isMultiItem = false
+
+    try {
+      input = CreatePurchaseOrderSchema.parse(body)
+      isMultiItem = true
+    } catch (newSchemaErr) {
+      // Try old single-item schema for backwards compatibility
+      try {
+        const singleInput = CreatePurchaseOrderSingleSchema.parse(body)
+        // Convert old format to new format
+        input = {
+          supplierId: singleInput.supplierId,
+          items: [
+            {
+              materialId: singleInput.materialId,
+              quantity: singleInput.quantity,
+              unitPrice: (singleInput.cost ?? 0) / singleInput.quantity,
+            },
+          ],
+          deliveryDate: singleInput.deliveryDate,
+        }
+      } catch {
+        throw newSchemaErr
+      }
+    }
 
     // Verify supplier exists
     const supplier = await prisma.supplier.findUnique({ where: { id: input.supplierId } })
@@ -132,30 +158,52 @@ export const POST = withAdminAuth(async (req: NextRequest) => {
       )
     }
 
-    // Verify material exists
-    const material = await prisma.rawMaterial.findUnique({ where: { id: input.materialId } })
-    if (!material) {
+    // Verify all materials exist
+    const materialIds = input.items.map((item: any) => item.materialId)
+    const materials = await prisma.rawMaterial.findMany({
+      where: { id: { in: materialIds } },
+    })
+
+    if (materials.length !== materialIds.length) {
+      const notFound = materialIds.filter((id: string) => !materials.find((m: any) => m.id === id))
       return NextResponse.json(
-        { success: false, error: { code: 'NOT_FOUND', message: 'Raw material not found.' } },
+        {
+          success: false,
+          error: {
+            code: 'NOT_FOUND',
+            message: `Raw materials not found: ${notFound.join(', ')}`,
+          },
+        },
         { status: 404 },
       )
     }
 
     const poNumber = await generatePoNumber()
 
+    // Create PO with items in a transaction
     const po = await prisma.purchaseOrder.create({
       data: {
         poNumber,
         supplierId: input.supplierId,
-        materialId: input.materialId,
-        quantity: input.quantity,
         deliveryDate: new Date(input.deliveryDate),
         status: 'pending',
-        cost: input.cost ?? null,
+        totalCost: input.items.reduce((sum: number, item: any) => sum + item.quantity * item.unitPrice, 0),
+        items: {
+          create: input.items.map((item: any) => ({
+            materialId: item.materialId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            lineTotal: item.quantity * item.unitPrice,
+          })),
+        },
       },
       include: {
         supplier: { select: { id: true, name: true } },
-        material: { select: { id: true, name: true, unit: true } },
+        items: {
+          include: {
+            material: { select: { id: true, name: true, unit: true } },
+          },
+        },
       },
     })
 
