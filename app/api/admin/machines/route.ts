@@ -21,23 +21,41 @@ export const GET = withAdminAuth(async (req: NextRequest) => {
     const take = Math.min(Math.max(rawTake, 1), 100)
     const labIdFilter = searchParams.get('labId') ?? undefined
 
-    const where = labIdFilter ? { labId: labIdFilter } : {}
+    // Build the where clause explicitly
+    const whereClause: any = {}
+    if (labIdFilter) {
+      whereClause.labId = labIdFilter
+    }
 
-    const machines = await prisma.machine.findMany({
-      ...(Object.keys(where).length > 0 ? { where } : {}),
+    // Build the query object
+    const queryObj: any = {
       take: take + 1,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'desc' as const },
       include: {
         lab: { select: { id: true, name: true } },
       },
-    })
+    }
+
+    // Add where clause only if it has properties
+    if (Object.keys(whereClause).length > 0) {
+      queryObj.where = whereClause
+    }
+
+    // Add cursor pagination if provided
+    if (cursor) {
+      queryObj.cursor = { id: cursor }
+      queryObj.skip = 1
+    }
+
+    const machines = await prisma.machine.findMany(queryObj)
 
     const hasNextPage = machines.length > take
     const page = hasNextPage ? machines.slice(0, take) : machines
-    const nextCursor = hasNextPage ? page[page.length - 1].id : null
+    const nextCursor = hasNextPage ? page[page.length - 1]?.id : null
 
-    const total = await prisma.machine.count({ where })
+    const total = await prisma.machine.count(
+      Object.keys(whereClause).length > 0 ? { where: whereClause } : {}
+    )
 
     return NextResponse.json({
       success: true,
