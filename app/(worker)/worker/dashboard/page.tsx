@@ -517,7 +517,7 @@ export default function WorkerDashboard() {
   // Auth redirect
   useEffect(() => {
     if (status === 'unauthenticated') {
-      router.push('/auth/signin');
+      router.push('/auth/login');
       return;
     }
     if (
@@ -525,7 +525,7 @@ export default function WorkerDashboard() {
       (session?.user?.role as string) !== 'WORKER' &&
       (session?.user?.role as string) !== 'MANAGER'
     ) {
-      router.push('/');
+      router.push('/admin/production/dashboard');
     }
   }, [status, session, router]);
 
