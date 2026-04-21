@@ -99,10 +99,16 @@ export const GET = withAdminAuth(async (req: NextRequest) => {
     })
   } catch (err) {
     console.error('[purchase-orders] GET error:', err)
+    // Include error details in response for debugging
+    const errorMessage = err instanceof Error ? err.message : String(err)
     return NextResponse.json(
       {
         success: false,
-        error: { code: 'INTERNAL_ERROR', message: 'Failed to retrieve purchase orders.' },
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to retrieve purchase orders.',
+          details: process.env.NODE_ENV === 'development' ? errorMessage : undefined,
+        },
       },
       { status: 500 },
     )
