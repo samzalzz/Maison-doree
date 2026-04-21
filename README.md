@@ -311,5 +311,6 @@ All rights reserved - Maison Dorée Productions
 **Testing Status:**
 - Database: ✅ Migration lock cleared, schema verified
 - Local Build: ✅ Next.js build succeeds without errors
-- Remote Deployment: ⏳ Triggering fresh build (commit 5) to complete deployment
-- API Endpoints: ⏳ Testing after fresh build - currently returning 404 pending build completion
+- Restart Loop: ✅ FIXED - Added resilient startup script (scripts/start.js)
+- Remote Deployment: ⏳ Fresh build with fix (commit 061314e) being deployed
+- API Endpoints: ⏳ Testing after deployment - should stabilize with new startup handler
