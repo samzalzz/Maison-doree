@@ -1,0 +1,200 @@
+<mxfile host="app.diagrams.net" modified="2026-04-21T20:45:00.000Z" agent="Claude" version="1.0">
+  <diagram id="maison-doree-system" name="Maison Dorée System Architecture">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="900" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- PRESENTATION LAYER -->
+        <mxCell id="pl-header" value="PRESENTATION LAYER" style="text;fontSize=14;fontStyle=bold;fillColor=#e6f3ff;strokeColor=#0066cc;rounded=1;padding=5" vertex="1" parent="1">
+          <mxGeometry x="20" y="20" width="1360" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Public Site -->
+        <mxCell id="ps1" value="Public Website&#10;(NextAuth Login)" style="rounded=1;fillColor=#fff4e6;strokeColor=#ff9800;strokeWidth=2;fontSize=11;padding=5" vertex="1" parent="1">
+          <mxGeometry x="30" y="70" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Customer Portal -->
+        <mxCell id="cp1" value="Customer Portal&#10;(Orders, Tracking)" style="rounded=1;fillColor=#fff4e6;strokeColor=#ff9800;strokeWidth=2;fontSize=11;padding=5" vertex="1" parent="1">
+          <mxGeometry x="170" y="70" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Worker Dashboard -->
+        <mxCell id="wd1" value="Worker Dashboard&#10;(Tasks, Batches)" style="rounded=1;fillColor=#f0f8ff;strokeColor=#1976d2;strokeWidth=2;fontSize=11;padding=5" vertex="1" parent="1">
+          <mxGeometry x="310" y="70" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Driver App -->
+        <mxCell id="da1" value="Driver Dashboard&#10;(Deliveries)" style="rounded=1;fillColor=#f0f8ff;strokeColor=#1976d2;strokeWidth=2;fontSize=11;padding=5" vertex="1" parent="1">
+          <mxGeometry x="450" y="70" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Manager Dashboard -->
+        <mxCell id="md1" value="Manager Dashboard&#10;(Analytics, Reports)" style="rounded=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=2;fontSize=11;padding=5" vertex="1" parent="1">
+          <mxGeometry x="590" y="70" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Admin Portal -->
+        <mxCell id="ad1" value="Admin Portal&#10;(System Control)" style="rounded=1;fillColor=#e8f5e9;strokeColor=#388e3c;strokeWidth=2;fontSize=11;padding=5" vertex="1" parent="1">
+          <mxGeometry x="730" y="70" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- API LAYER -->
+        <mxCell id="al-header" value="API LAYER (80+ endpoints)" style="text;fontSize=14;fontStyle=bold;fillColor=#f0f0f0;strokeColor=#333;rounded=1;padding=5" vertex="1" parent="1">
+          <mxGeometry x="20" y="180" width="1360" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- API Groups -->
+        <mxCell id="api-auth" value="Authentication&#10;/api/auth/*" style="rounded=1;fillColor=#ffe6e6;strokeColor=#d32f2f;strokeWidth=2;fontSize=10;padding=3" vertex="1" parent="1">
+          <mxGeometry x="30" y="220" width="100" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="api-orders" value="Orders &amp; Customers&#10;/api/orders/*&#10;/api/customers/*" style="rounded=1;fillColor=#ffe6e6;strokeColor=#d32f2f;strokeWidth=2;fontSize=10;padding=3" vertex="1" parent="1">
+          <mxGeometry x="145" y="220" width="110" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="api-production" value="Production&#10;/api/production/*&#10;/api/batches/*&#10;/api/recipes/*" style="rounded=1;fillColor=#e6f3ff;strokeColor=#0066cc;strokeWidth=2;fontSize=10;padding=3" vertex="1" parent="1">
+          <mxGeometry x="270" y="220" width="110" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="api-suppliers" value="Suppliers &amp; PO&#10;/api/suppliers/*&#10;/api/purchase-orders/*" style="rounded=1;fillColor=#e6f3ff;strokeColor=#0066cc;strokeWidth=2;fontSize=10;padding=3" vertex="1" parent="1">
+          <mxGeometry x="395" y="220" width="110" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="api-quality" value="Quality Control&#10;/api/quality/*&#10;/api/inspections/*" style="rounded=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=2;fontSize=10;padding=3" vertex="1" parent="1">
+          <mxGeometry x="520" y="220" width="110" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="api-workflow" value="Workflows&#10;/api/workflows/*&#10;/api/triggers/*" style="rounded=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=2;fontSize=10;padding=3" vertex="1" parent="1">
+          <mxGeometry x="645" y="220" width="110" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="api-analytics" value="Analytics&#10;/api/analytics/*&#10;/api/reports/*" style="rounded=1;fillColor=#e8f5e9;strokeColor=#388e3c;strokeWidth=2;fontSize=10;padding=3" vertex="1" parent="1">
+          <mxGeometry x="770" y="220" width="110" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- DATABASE LAYER -->
+        <mxCell id="db-header" value="DATABASE LAYER (42 Models)" style="text;fontSize=14;fontStyle=bold;fillColor=#f0f0f0;strokeColor=#333;rounded=1;padding=5" vertex="1" parent="1">
+          <mxGeometry x="20" y="320" width="1360" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- Database Groups -->
+        <mxCell id="db-auth" value="Authentication&#10;User, Account,&#10;Session, Token" style="rounded=1;fillColor=#ffe6e6;strokeColor=#d32f2f;strokeWidth=2;fontSize=9;padding=3" vertex="1" parent="1">
+          <mxGeometry x="30" y="360" width="90" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-orders" value="Orders &amp; Customers&#10;Customer, Order, OrderItem,&#10;Cart, Promotion, Review" style="rounded=1;fillColor=#ffe6e6;strokeColor=#d32f2f;strokeWidth=2;fontSize=9;padding=3" vertex="1" parent="1">
+          <mxGeometry x="135" y="360" width="110" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-production" value="Production&#10;ProductionLab, Machine,&#10;Recipe, RawMaterial,&#10;ProductionBatch, BatchItem" style="rounded=1;fillColor=#e6f3ff;strokeColor=#0066cc;strokeWidth=2;fontSize=9;padding=3" vertex="1" parent="1">
+          <mxGeometry x="260" y="360" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-suppliers" value="Suppliers &amp; Inventory&#10;Supplier, SupplierProduct,&#10;PurchaseOrder,&#10;PurchaseOrderItem, LabStock" style="rounded=1;fillColor#e6f3ff;strokeColor=#0066cc;strokeWidth=2;fontSize=9;padding=3" vertex="1" parent="1">
+          <mxGeometry x="395" y="360" width="120" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-quality" value="Quality Management&#10;QualityInspection,&#10;InspectionCriteria,&#10;DefectLog, CorrectionAction" style="rounded=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=2;fontSize=9;padding=3" vertex="1" parent="1">
+          <mxGeometry x="530" y="360" width="110" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-workflow" value="Workflow Engine&#10;Workflow, WorkflowStep,&#10;Condition, Action,&#10;Trigger, Execution" style="rounded=1;fillColor=#f3e5f5;strokeColor=#7b1fa2;strokeWidth=2;fontSize=9;padding=3" vertex="1" parent="1">
+          <mxGeometry x="655" y="360" width="110" height="80" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db-delivery" value="Delivery &amp; Logistics&#10;DeliveryRoute, Stop,&#10;Shipment, Tracking,&#10;DeliveryProof" style="rounded=1;fillColor=#e8f5e9;strokeColor=#388e3c;strokeWidth=2;fontSize=9;padding=3" vertex="1" parent="1">
+          <mxGeometry x="780" y="360" width="110" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- EXTERNAL INTEGRATIONS -->
+        <mxCell id="ext-header" value="EXTERNAL INTEGRATIONS &amp; SERVICES" style="text;fontSize=14;fontStyle=bold;fillColor=#f0f0f0;strokeColor=#333;rounded=1;padding=5" vertex="1" parent="1">
+          <mxGeometry x="20" y="470" width="1360" height="25" as="geometry" />
+        </mxCell>
+
+        <mxCell id="stripe" value="Stripe&#10;(Payments)" style="rounded=1;fillColor=#fce4ec;strokeColor=#c2185b;strokeWidth=2;fontSize=10;padding=5" vertex="1" parent="1">
+          <mxGeometry x="30" y="515" width="90" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="socket" value="Socket.IO&#10;(Real-time)" style="rounded=1;fillColor=#fce4ec;strokeColor=#c2185b;strokeWidth=2;fontSize=10;padding=5" vertex="1" parent="1">
+          <mxGeometry x="135" y="515" width="90" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="redis" value="Redis&#10;(Cache, Queues)" style="rounded=1;fillColor=#fce4ec;strokeColor=#c2185b;strokeWidth=2;fontSize=10;padding=5" vertex="1" parent="1">
+          <mxGeometry x="240" y="515" width="90" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="postgresql" value="PostgreSQL&#10;(Primary DB)" style="rounded=1;fillColor=#ffebee;strokeColor=#b71c1c;strokeWidth=3;fontSize=10;padding=5" vertex="1" parent="1">
+          <mxGeometry x="345" y="515" width="100" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nextauth" value="NextAuth.js&#10;(OAuth, JWT)" style="rounded=1;fillColor=#fce4ec;strokeColor=#c2185b;strokeWidth=2;fontSize=10;padding=5" vertex="1" parent="1">
+          <mxGeometry x="460" y="515" width="100" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="nodemailer" value="Nodemailer&#10;(Email)" style="rounded=1;fillColor=#fce4ec;strokeColor=#c2185b;strokeWidth=2;fontSize=10;padding=5" vertex="1" parent="1">
+          <mxGeometry x="575" y="515" width="90" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ml" value="ML Module&#10;(Forecasting)" style="rounded=1;fillColor=#fce4ec;strokeColor=#c2185b;strokeWidth=2;fontSize=10;padding=5" vertex="1" parent="1">
+          <mxGeometry x="680" y="515" width="100" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- SYSTEM STATISTICS -->
+        <mxCell id="stats" value="📊 SYSTEM STATISTICS&#10;Models: 42 | Endpoints: 80+ | Pages: 35+ | Features: Real-time, ML, Workflows, QA, Delivery" style="text;fontSize=11;fillColor=#fffde7;strokeColor=#f57f17;rounded=1;padding=10;strokeWidth=2" vertex="1" parent="1">
+          <mxGeometry x="20" y="620" width="1360" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- CONNECTIONS -->
+        <!-- UI to API -->
+        <mxCell id="conn1" edge="1" parent="1" source="ps1" target="api-auth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn2" edge="1" parent="1" source="cp1" target="api-orders">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn3" edge="1" parent="1" source="wd1" target="api-production">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn4" edge="1" parent="1" source="da1" target="api-production">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn5" edge="1" parent="1" source="md1" target="api-analytics">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn6" edge="1" parent="1" source="ad1" target="api-suppliers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- API to Database -->
+        <mxCell id="conn7" edge="1" parent="1" source="api-auth" target="db-auth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn8" edge="1" parent="1" source="api-orders" target="db-orders">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn9" edge="1" parent="1" source="api-production" target="db-production">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn10" edge="1" parent="1" source="api-suppliers" target="db-suppliers">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn11" edge="1" parent="1" source="api-quality" target="db-quality">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn12" edge="1" parent="1" source="api-workflow" target="db-workflow">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Database to External Services -->
+        <mxCell id="conn13" edge="1" parent="1" source="postgresql" target="stripe">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="conn14" edge="1" parent="1" source="postgresql" target="redis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
