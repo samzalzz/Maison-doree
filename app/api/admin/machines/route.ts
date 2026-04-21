@@ -30,7 +30,7 @@ export const GET = withAdminAuth(async (req: NextRequest) => {
     // Build the query object
     const queryObj: any = {
       take: take + 1,
-      orderBy: { createdAt: 'desc' as const },
+      orderBy: { id: 'desc' as const },
       include: {
         lab: { select: { id: true, name: true } },
       },
