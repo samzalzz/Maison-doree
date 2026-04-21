@@ -663,29 +663,29 @@ function LabStockSection({
                   </div>
 
                   {/* Status badge and action buttons */}
-                  <div className="flex-shrink-0 flex items-center gap-2">
+                  <div className="flex-shrink-0 flex items-center gap-2 min-w-0">
                     {isLow && (
-                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700 flex-shrink-0">
                         <AlertTriangle className="w-3 h-3" />
                         Low Stock
                       </span>
                     )}
+                    {/* Edit Button */}
                     <button
                       type="button"
                       onClick={() => onAdjustStock(s)}
-                      className="inline-flex items-center justify-center p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
-                      title={`Adjust ${s.material.name} stock`}
-                      aria-label={`Edit ${s.material.name} stock for ${lab.name}`}
+                      className="flex-shrink-0 p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors"
+                      title={`Edit ${s.material.name}`}
                     >
                       <Edit2 className="w-4 h-4" />
                     </button>
+                    {/* Delete Button */}
                     <button
                       type="button"
                       onClick={() => handleDeleteStock(s.id, s.materialId, s.material.name)}
                       disabled={isDeletingId === s.id}
-                      className="inline-flex items-center justify-center p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={`Delete ${s.material.name} from stock`}
-                      aria-label={`Delete ${s.material.name} from ${lab.name}`}
+                      className="flex-shrink-0 p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                      title={`Delete ${s.material.name}`}
                     >
                       {isDeletingId === s.id ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -700,15 +700,27 @@ function LabStockSection({
           )}
 
           {/* Add Material button - always visible when expanded */}
-          {onAddStock && (
-            <div className="p-4 bg-green-50 border-t border-gray-200 flex items-center justify-center">
+          {onAddStock && stock.length > 0 && (
+            <div className="p-4 bg-green-50 border-t border-gray-200">
               <button
                 type="button"
                 onClick={() => onAddStock(lab.id, lab.name)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 transition-colors"
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
               >
-                <Plus className="w-5 h-5" />
-                <span>{stock.length === 0 ? 'Add First Material' : 'Add More Material'}</span>
+                <Plus className="w-4 h-4" />
+                Add More Material
+              </button>
+            </div>
+          )}
+          {onAddStock && stock.length === 0 && (
+            <div className="p-4 bg-green-50 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => onAddStock(lab.id, lab.name)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Add First Material
               </button>
             </div>
           )}
