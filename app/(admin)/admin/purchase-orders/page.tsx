@@ -465,8 +465,7 @@ function CreatePurchaseOrderModal({
               <span className="text-gray-400 font-normal text-xs ml-1">(optional)</span>
             </label>
             <select
-              value={form.paymentMethod}
-              onChange={(e) => setField('paymentMethod', e.target.value)}
+              defaultValue=""
               className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
             >
               <option value="">Select payment method...</option>
