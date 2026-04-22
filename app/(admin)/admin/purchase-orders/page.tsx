@@ -80,14 +80,14 @@ interface CreateFormData {
 
 const EMPTY_CREATE_FORM: CreateFormData = {
   supplierId: '',
-  items: [{ materialId: '', quantity: '0', unitPrice: '0' }],
+  items: [{ materialId: '', quantity: '', unitPrice: '' }],
   deliveryDate: '',
 }
 
 const EMPTY_ITEM: PurchaseOrderItem = {
   materialId: '',
-  quantity: '0',
-  unitPrice: '0',
+  quantity: '',
+  unitPrice: '',
 }
 
 const PAYMENT_METHODS = [
@@ -253,16 +253,22 @@ function CreatePurchaseOrderModal({
 
     setIsSaving(true)
     try {
+      console.log('=== PO Form Submission Debug ===')
+      console.log('Form state:', form)
+
       // Read values from form state AND DOM to ensure we have the latest values
       const items = form.items.map((item, idx) => {
         let qty = parseFloat(item.quantity)
         let price = parseFloat(item.unitPrice)
+
+        console.log(`Item ${idx} before DOM check:`, { quantity: item.quantity, unitPrice: item.unitPrice, qty, price })
 
         // If parseFloat resulted in NaN, try reading from DOM
         if (isNaN(qty)) {
           const qtyInput = document.querySelector(`input[data-item-index="${idx}"][data-field="quantity"]`) as HTMLInputElement
           if (qtyInput?.value) {
             qty = parseFloat(qtyInput.value)
+            console.log(`Item ${idx} qty from DOM:`, qtyInput.value, '→', qty)
           }
         }
 
@@ -270,8 +276,11 @@ function CreatePurchaseOrderModal({
           const priceInput = document.querySelector(`input[data-item-index="${idx}"][data-field="unitPrice"]`) as HTMLInputElement
           if (priceInput?.value) {
             price = parseFloat(priceInput.value)
+            console.log(`Item ${idx} price from DOM:`, priceInput.value, '→', price)
           }
         }
+
+        console.log(`Item ${idx} final:`, { materialId: item.materialId, quantity: qty, unitPrice: price })
 
         return {
           materialId: item.materialId,
@@ -286,6 +295,9 @@ function CreatePurchaseOrderModal({
         deliveryDate: new Date(form.deliveryDate).toISOString(),
       }
 
+      console.log('Final payload:', payload)
+      console.log('Payload JSON:', JSON.stringify(payload))
+
       const res = await fetch('/api/admin/purchase-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -293,6 +305,7 @@ function CreatePurchaseOrderModal({
       })
 
       const json = await res.json()
+      console.log('API Response:', { ok: res.ok, status: res.status, json })
 
       if (!res.ok || !json.success) {
         toastError({
@@ -407,14 +420,8 @@ function CreatePurchaseOrderModal({
                         <label className="text-xs font-semibold text-gray-600 block mb-1">Qty</label>
                         <input
                           type="number"
-                          value={item.quantity === '0' ? '' : item.quantity}
-                          onChange={(e) => setItemField(idx, 'quantity', e.target.value || '0')}
-                          onBlur={(e) => {
-                            const val = e.target.value
-                            if (val && !isNaN(parseFloat(val))) {
-                              setItemField(idx, 'quantity', val)
-                            }
-                          }}
+                          value={item.quantity}
+                          onChange={(e) => setItemField(idx, 'quantity', e.target.value)}
                           placeholder="0"
                           step="0.01"
                           min="0"
@@ -433,14 +440,8 @@ function CreatePurchaseOrderModal({
                         <label className="text-xs font-semibold text-gray-600 block mb-1">Unit Price</label>
                         <input
                           type="number"
-                          value={item.unitPrice === '0' ? '' : item.unitPrice}
-                          onChange={(e) => setItemField(idx, 'unitPrice', e.target.value || '0')}
-                          onBlur={(e) => {
-                            const val = e.target.value
-                            if (val && !isNaN(parseFloat(val))) {
-                              setItemField(idx, 'unitPrice', val)
-                            }
-                          }}
+                          value={item.unitPrice}
+                          onChange={(e) => setItemField(idx, 'unitPrice', e.target.value)}
                           placeholder="0.00"
                           step="0.01"
                           min="0"
