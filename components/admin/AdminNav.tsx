@@ -18,35 +18,22 @@ interface NavSection {
 
 const navSections: NavSection[] = [
   {
-    title: 'Core',
+    title: 'Dashboard',
     items: [
-      { label: 'Dashboard',      href: '/admin/dashboard',  icon: '📊' },
-      { label: 'Analytics',      href: '/admin/analytics',  icon: '📉' },
-      { label: 'Product Inventory', href: '/admin/stocks',     icon: '📦' },
-    ],
-  },
-  {
-    title: 'E-commerce',
-    items: [
-      { label: 'Products', href: '/admin/products', icon: '📦' },
-      { label: 'Orders',   href: '/admin/orders',   icon: '🛒' },
-      { label: 'Coupons',  href: '/admin/coupons',  icon: '🏷️' },
+      { label: 'Dashboard', href: '/admin/dashboard', icon: '📊' },
     ],
   },
   {
     title: 'Production Management',
     items: [
-      { label: 'Dashboard',        href: '/admin/production/dashboard',  icon: '📊' },
-      { label: 'Labs',             href: '/admin/labs',                  icon: '🏭' },
-      { label: 'Machines',         href: '/admin/machines',              icon: '⚙️' },
-      { label: 'Recipes',          href: '/admin/recipes',               icon: '👨‍🍳' },
-      { label: 'Raw Materials',    href: '/admin/raw-materials',         icon: '📦' },
-      { label: 'Batches',          href: '/admin/production/batches',    icon: '📋' },
-      { label: 'Material Stock',   href: '/admin/production/stock',      icon: '📦' },
-      { label: 'Demand Forecast',  href: '/admin/production/forecast',   icon: '📅' },
-      { label: 'Purchase Orders',  href: '/admin/purchase-orders',       icon: '📋' },
-      { label: 'Suppliers',        href: '/admin/suppliers',             icon: '🚚' },
-      { label: 'Workflows',        href: '/admin/production/workflows',  icon: '⚙️' },
+      { label: 'Supplier',       href: '/admin/suppliers',             icon: '🚚' },
+      { label: 'Purchase Order', href: '/admin/purchase-orders',       icon: '📋' },
+      { label: 'Stock',          href: '/admin/production/stock',      icon: '📦' },
+      { label: 'Recipe',         href: '/admin/recipes',               icon: '👨‍🍳' },
+      { label: 'Labs',           href: '/admin/labs',                  icon: '🏭' },
+      { label: 'Machine',        href: '/admin/machines',              icon: '⚙️' },
+      { label: 'Sell Order',     href: '/admin/sell-orders',           icon: '💼' },
+      { label: 'Clients',        href: '/admin/customers',             icon: '👥' },
     ],
   },
   {
