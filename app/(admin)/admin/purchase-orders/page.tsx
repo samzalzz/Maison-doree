@@ -80,14 +80,14 @@ interface CreateFormData {
 
 const EMPTY_CREATE_FORM: CreateFormData = {
   supplierId: '',
-  items: [{ materialId: '', quantity: '', unitPrice: '' }],
+  items: [{ materialId: '', quantity: '0', unitPrice: '0' }],
   deliveryDate: '',
 }
 
 const EMPTY_ITEM: PurchaseOrderItem = {
   materialId: '',
-  quantity: '',
-  unitPrice: '',
+  quantity: '0',
+  unitPrice: '0',
 }
 
 const PAYMENT_METHODS = [
