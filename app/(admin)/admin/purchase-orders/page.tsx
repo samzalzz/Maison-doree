@@ -249,30 +249,16 @@ function CreatePurchaseOrderModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Read values directly from DOM to handle cases where state is out of sync
-    const qtyInputs = Array.from(document.querySelectorAll('input[placeholder="0"]')) as HTMLInputElement[]
-    const priceInputs = Array.from(document.querySelectorAll('input[placeholder="0.00"]')) as HTMLInputElement[]
-    const materialSelects = Array.from(document.querySelectorAll('select')).filter(s => s.length > 1 && !s.value.includes('20')) as HTMLSelectElement[]
-
-    const items = form.items.map((item, idx) => {
-      // Try to read from DOM first, fall back to form state
-      const domQty = qtyInputs[idx]?.value
-      const domPrice = priceInputs[idx]?.value
-      const qty = parseFloat(domQty || item.quantity)
-      const price = parseFloat(domPrice || item.unitPrice)
-
-      return {
-        materialId: item.materialId,
-        quantity: qty,
-        unitPrice: price,
-      }
-    })
-
     if (!validate()) return
 
     setIsSaving(true)
     try {
-      // Build payload
+      const items = form.items.map((item) => ({
+        materialId: item.materialId,
+        quantity: parseFloat(item.quantity),
+        unitPrice: parseFloat(item.unitPrice),
+      }))
+
       const payload = {
         supplierId: form.supplierId,
         items,
