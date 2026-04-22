@@ -26,6 +26,12 @@ export enum BatchItemStatus {
   COMPLETED = "completed",
 }
 
+export enum StockType {
+  RAW_MATERIAL = "RAW_MATERIAL",
+  MID_PROCESS = "MID_PROCESS",
+  FINISHED_PRODUCT = "FINISHED_PRODUCT",
+}
+
 // ============================================================================
 // CORE ENTITY TYPES
 // Field names and nullability are derived directly from prisma/schema.prisma.
@@ -99,13 +105,16 @@ export type RawMaterial = {
 
 // 7. LabStock
 // Prisma exposes updatedAt (via @updatedAt); aliased here as lastUpdated
-// to match the specification while staying true to the generated client.
+// stockType categorizes: RAW_MATERIAL, MID_PROCESS, FINISHED_PRODUCT
+// originBatchId tracks where the stock came from (for traceability)
 export type LabStock = {
   id: string;
   labId: string;
   materialId: string;
+  stockType: StockType;
   quantity: Decimal;
   minThreshold: Decimal;
+  originBatchId?: string;
   lastUpdated: Date;
 };
 

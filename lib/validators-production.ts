@@ -368,6 +368,11 @@ export const UpdateLabStockSchema = z.object({
     .number()
     .nonnegative("Quantity cannot be negative; use 0 to clear stock")
     .describe("Absolute stock level after manual adjustment"),
+  stockType: z
+    .enum(["RAW_MATERIAL", "MID_PROCESS", "FINISHED_PRODUCT"])
+    .default("RAW_MATERIAL")
+    .optional()
+    .describe("Stock categorization"),
 });
 
 export type UpdateLabStockInput = z.infer<typeof UpdateLabStockSchema>;
