@@ -393,12 +393,10 @@ function CreatePurchaseOrderModal({
                       <div>
                         <label className="text-xs font-semibold text-gray-600 block mb-1">Qty</label>
                         <input
-                          type="number"
+                          type="text"
                           value={item.quantity}
                           onChange={(e) => setItemField(idx, 'quantity', e.target.value)}
                           placeholder="0"
-                          min="0.01"
-                          step="0.01"
                           className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
                             errors[`item_${idx}_quantity`] ? 'border-red-400' : 'border-gray-300'
                           }`}
@@ -411,12 +409,10 @@ function CreatePurchaseOrderModal({
                       <div>
                         <label className="text-xs font-semibold text-gray-600 block mb-1">Unit Price</label>
                         <input
-                          type="number"
+                          type="text"
                           value={item.unitPrice}
                           onChange={(e) => setItemField(idx, 'unitPrice', e.target.value)}
                           placeholder="0.00"
-                          min="0.01"
-                          step="0.01"
                           className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
                             errors[`item_${idx}_price`] ? 'border-red-400' : 'border-gray-300'
                           }`}
