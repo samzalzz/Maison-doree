@@ -249,49 +249,33 @@ function CreatePurchaseOrderModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Always log the form state at submission time
-    console.log('🔍 FORM STATE AT SUBMISSION:', {
-      supplierId: form.supplierId,
-      deliveryDate: form.deliveryDate,
-      items: form.items.map((item, i) => ({
-        index: i,
+    // Read values directly from DOM to handle cases where state is out of sync
+    const qtyInputs = Array.from(document.querySelectorAll('input[placeholder="0"]')) as HTMLInputElement[]
+    const priceInputs = Array.from(document.querySelectorAll('input[placeholder="0.00"]')) as HTMLInputElement[]
+    const materialSelects = Array.from(document.querySelectorAll('select')).filter(s => s.length > 1 && !s.value.includes('20')) as HTMLSelectElement[]
+
+    const items = form.items.map((item, idx) => {
+      // Try to read from DOM first, fall back to form state
+      const domQty = qtyInputs[idx]?.value
+      const domPrice = priceInputs[idx]?.value
+      const qty = parseFloat(domQty || item.quantity)
+      const price = parseFloat(domPrice || item.unitPrice)
+
+      return {
         materialId: item.materialId,
-        quantity: item.quantity,
-        quantityType: typeof item.quantity,
-        unitPrice: item.unitPrice,
-        unitPriceType: typeof item.unitPrice,
-      })),
+        quantity: qty,
+        unitPrice: price,
+      }
     })
 
     if (!validate()) return
 
     setIsSaving(true)
     try {
-      // Build payload with explicit NaN checks
+      // Build payload
       const payload = {
         supplierId: form.supplierId,
-        items: form.items.map((item, idx) => {
-          const qty = parseFloat(item.quantity)
-          const price = parseFloat(item.unitPrice)
-
-          console.log(`Item ${idx} values:`, {
-            raw_quantity: item.quantity,
-            raw_unitPrice: item.unitPrice,
-            parsed_qty: qty,
-            parsed_price: price
-          })
-
-          // Safety check - if values are NaN, report the actual state
-          if (isNaN(qty) || isNaN(price)) {
-            console.error(`Item ${idx} has invalid values:`, { quantity: item.quantity, unitPrice: item.unitPrice, qty, price })
-          }
-
-          return {
-            materialId: item.materialId,
-            quantity: qty,
-            unitPrice: price,
-          }
-        }),
+        items,
         deliveryDate: new Date(form.deliveryDate).toISOString(),
       }
 
