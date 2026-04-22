@@ -249,21 +249,32 @@ function CreatePurchaseOrderModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!validate()) return
+    console.log('Form state at submit:', form)
+    if (!validate()) {
+      console.log('Validation failed')
+      return
+    }
 
     setIsSaving(true)
     try {
-      const items = form.items.map((item) => ({
-        materialId: item.materialId,
-        quantity: parseFloat(item.quantity),
-        unitPrice: parseFloat(item.unitPrice),
-      }))
+      const items = form.items.map((item) => {
+        const qty = parseFloat(item.quantity)
+        const price = parseFloat(item.unitPrice)
+        console.log('Item:', { materialId: item.materialId, formQty: item.quantity, parsedQty: qty, formPrice: item.unitPrice, parsedPrice: price })
+        return {
+          materialId: item.materialId,
+          quantity: qty,
+          unitPrice: price,
+        }
+      })
 
       const payload = {
         supplierId: form.supplierId,
         items,
         deliveryDate: new Date(form.deliveryDate).toISOString(),
       }
+
+      console.log('Payload being sent:', JSON.stringify(payload, null, 2))
 
       const res = await fetch('/api/admin/purchase-orders', {
         method: 'POST',
