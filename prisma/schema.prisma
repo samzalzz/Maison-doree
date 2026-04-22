@@ -512,6 +512,7 @@ model RawMaterial {
   materialAllocations        MaterialAllocation[]
   supplierCatalogs           SupplierCatalog[]
   poSuggestions              PurchaseOrderSuggestion[]
+  sellOrderItems             SellOrderItem[] // Sold finished products
 
   @@unique([name, type])
   @@index([isIntermediate])
