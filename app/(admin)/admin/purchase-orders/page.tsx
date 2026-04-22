@@ -72,14 +72,6 @@ interface PurchaseOrderItem {
   unitPrice: string
 }
 
-interface SupplierCatalogItem {
-  materialId: string
-  material: { id: string; name: string; unit: string; type: string }
-  unitPrice: number
-  minOrderQty: number
-  leadTimeDays: number
-}
-
 interface CreateFormData {
   supplierId: string
   items: PurchaseOrderItem[]
@@ -177,32 +169,6 @@ function CreatePurchaseOrderModal({
   const [form, setForm] = useState<CreateFormData>(EMPTY_CREATE_FORM)
   const [isSaving, setIsSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [catalogMaterials, setCatalogMaterials] = useState<SupplierCatalogItem[]>([])
-  const [loadingCatalog, setLoadingCatalog] = useState(false)
-
-  useEffect(() => {
-    if (!form.supplierId) {
-      setCatalogMaterials([])
-      return
-    }
-
-    const fetchCatalog = async () => {
-      setLoadingCatalog(true)
-      try {
-        const res = await fetch(`/api/admin/suppliers/${form.supplierId}/catalog`)
-        const json = await res.json()
-        if (json.success && json.data?.items) {
-          setCatalogMaterials(json.data.items)
-        }
-      } catch {
-        setCatalogMaterials([])
-      } finally {
-        setLoadingCatalog(false)
-      }
-    }
-
-    fetchCatalog()
-  }, [form.supplierId])
 
   function setField<K extends keyof CreateFormData>(key: K, value: CreateFormData[K]) {
     setForm((prev) => ({ ...prev, [key]: value }))
@@ -214,23 +180,9 @@ function CreatePurchaseOrderModal({
   }
 
   function setItemField(index: number, field: keyof PurchaseOrderItem, value: string) {
-    const updatedItems = form.items.map((item, i) => {
-      if (i !== index) return item
-
-      // Auto-populate unit price from catalog when material is selected
-      if (field === 'materialId' && value) {
-        const catalogItem = catalogMaterials.find((c) => c.materialId === value)
-        if (catalogItem && !item.unitPrice) {
-          return { ...item, [field]: value, unitPrice: String(catalogItem.unitPrice) }
-        }
-      }
-
-      return { ...item, [field]: value }
-    })
-
     setForm((prev) => ({
       ...prev,
-      items: updatedItems,
+      items: prev.items.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
     }))
   }
 
@@ -389,8 +341,8 @@ function CreatePurchaseOrderModal({
               <button
                 type="button"
                 onClick={addItem}
-                disabled={!form.supplierId || form.items.length >= catalogMaterials.length}
-                title={!form.supplierId ? 'Select a supplier first' : form.items.length >= catalogMaterials.length ? 'All materials selected' : 'Add another item'}
+                disabled={form.items.length >= materials.length}
+                title={form.items.length >= materials.length ? 'All materials selected' : 'Add another item'}
                 className="text-xs px-3 py-1 bg-amber-100 text-amber-700 rounded hover:bg-amber-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 <Plus className="w-3 h-3 inline mr-1" /> Add Item
@@ -403,10 +355,10 @@ function CreatePurchaseOrderModal({
 
             <div className="space-y-3 bg-gray-50 p-3 rounded-lg">
               {form.items.map((item, idx) => {
-                const selectedCatalogItem = catalogMaterials.find((c) => c.materialId === item.materialId)
+                const selectedMaterial = materials.find((m) => m.id === item.materialId)
                 const usedMaterialIds = form.items.map((i) => i.materialId).filter(Boolean)
-                const availableCatalogItems = catalogMaterials.filter(
-                  (c) => !usedMaterialIds.includes(c.materialId) || c.materialId === item.materialId
+                const availableMaterials = materials.filter(
+                  (m) => !usedMaterialIds.includes(m.id) || m.id === item.materialId
                 )
                 const lineTotal = parseFloat(item.quantity) * parseFloat(item.unitPrice) || 0
 
@@ -416,21 +368,14 @@ function CreatePurchaseOrderModal({
                     <select
                       value={item.materialId}
                       onChange={(e) => setItemField(idx, 'materialId', e.target.value)}
-                      disabled={!form.supplierId || loadingCatalog}
-                      className={`w-full px-3 py-2 border rounded text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-50 disabled:cursor-not-allowed ${
+                      className={`w-full px-3 py-2 border rounded text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-amber-500 ${
                         errors[`item_${idx}_material`] ? 'border-red-400' : 'border-gray-300'
                       }`}
                     >
-                      <option value="">
-                        {!form.supplierId
-                          ? 'Select supplier first...'
-                          : loadingCatalog
-                            ? 'Loading materials...'
-                            : 'Select material...'}
-                      </option>
-                      {availableCatalogItems.map((c) => (
-                        <option key={c.materialId} value={c.materialId}>
-                          {c.material.name} ({c.material.unit}) @ {Number(c.unitPrice).toFixed(2)} MAD
+                      <option value="">Select material...</option>
+                      {availableMaterials.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.unit})
                         </option>
                       ))}
                     </select>
