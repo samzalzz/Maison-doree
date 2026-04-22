@@ -17,6 +17,7 @@ export const GET = withAdminAuth(async (req: NextRequest) => {
   try {
     const { searchParams } = new URL(req.url)
     const labId = searchParams.get('labId')
+    const stockType = searchParams.get('stockType')
 
     if (!labId) {
       return NextResponse.json(

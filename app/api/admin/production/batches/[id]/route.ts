@@ -158,9 +158,50 @@ export const PATCH = withAdminAuth(
         },
       })
 
-      // Fire-and-forget: trigger BATCH_COMPLETED workflows when batch reaches
-      // COMPLETED status. Failures are logged but do not affect the response.
+      // Handle batch completion: create finished product stock
       if (status === 'COMPLETED') {
+        // Get recipe to find finished product material
+        const recipe = await prisma.recipe.findUnique({
+          where: { id: existing.recipeId },
+          include: { producedMaterials: true }
+        })
+
+        // Create FINISHED_PRODUCT stock for each produced material
+        if (recipe?.producedMaterials?.length) {
+          try {
+            await Promise.all(
+              recipe.producedMaterials.map(material =>
+                prisma.labStock.upsert({
+                  where: {
+                    labId_materialId_stockType: {
+                      labId: existing.labId,
+                      materialId: material.id,
+                      stockType: 'FINISHED_PRODUCT'
+                    }
+                  },
+                  create: {
+                    labId: existing.labId,
+                    materialId: material.id,
+                    stockType: 'FINISHED_PRODUCT',
+                    quantity: new (require('@prisma/client/runtime/library').Decimal)(existing.quantity),
+                    minThreshold: new (require('@prisma/client/runtime/library').Decimal)(0),
+                    originBatchId: existing.id
+                  },
+                  update: {
+                    quantity: {
+                      increment: new (require('@prisma/client/runtime/library').Decimal)(existing.quantity)
+                    },
+                    originBatchId: existing.id
+                  }
+                })
+              )
+            )
+          } catch (stockErr) {
+            console.error('[PATCH batch] Stock creation error:', stockErr)
+          }
+        }
+
+        // Fire-and-forget: trigger BATCH_COMPLETED workflows
         triggerWorkflows('BATCH_COMPLETED', {
           batchId: updated.id,
           batchNumber: updated.batchNumber,

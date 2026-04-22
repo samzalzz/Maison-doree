@@ -2,11 +2,18 @@
 ## Complete System Overview
 
 ## Features
-- Production batch management with validation
-- Inventory tracking across multiple labs  
-- Recipe management with ingredient specifications
-- Lab and equipment management
-- Demand forecasting and predictions
+- Purchase order manager ( Create PO PDF files that he provide to the supplier by mail or print buttonà
+- Purchase order manager ( Validate that the supplier aggree and define the date of delivery )
+- Supplier (Define the suppliers products , Selling price from last purchases, Qtt delivered )
+- Purchase order that populate the Stock database when an order is defined as Received
+- Stock manage 3 types of stock the Raw materials the mid process material and the finished product
+- Recipe module, that creat workflows to use raw/mid process materials, with defined Lab (Workers+Machine) and machine(Capacity and availability) to product final product
+- Production batch management with validation that launch production with recepies
+- The production batch must update the stocks during the process
+- Once that the batch is over final products are sent to an available stock that can be used by the sell order
+- Sell order modul that manage the available final product stock and make Selling invoices in PDF format and create send order to deliver to the client using drivers part
+- Once reiceived the driver update the sell order and define it as delivered 
+- Inventory tracking across multiple labs
 - Role-based access control (Admin, Manager, Worker)
 - Performance analytics and metrics
 - Auto-refreshing dashboards
