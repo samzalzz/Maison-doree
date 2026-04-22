@@ -259,10 +259,13 @@ function CreatePurchaseOrderModal({
         unitPrice: parseFloat(item.unitPrice),
       }))
 
+      const [day, month, year] = form.deliveryDate.split('/')
+      const isoDate = `${year}-${month}-${day}`
+
       const payload = {
         supplierId: form.supplierId,
         items,
-        deliveryDate: new Date(form.deliveryDate).toISOString(),
+        deliveryDate: new Date(isoDate).toISOString(),
       }
 
       const res = await fetch('/api/admin/purchase-orders', {
