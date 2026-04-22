@@ -252,13 +252,24 @@ function CreatePurchaseOrderModal({
 
     setIsSaving(true)
     try {
+      // Build payload with explicit NaN checks
       const payload = {
         supplierId: form.supplierId,
-        items: form.items.map((item) => ({
-          materialId: item.materialId,
-          quantity: parseFloat(item.quantity),
-          unitPrice: parseFloat(item.unitPrice),
-        })),
+        items: form.items.map((item, idx) => {
+          const qty = parseFloat(item.quantity)
+          const price = parseFloat(item.unitPrice)
+
+          // Safety check - if values are NaN, report the actual state
+          if (isNaN(qty) || isNaN(price)) {
+            console.error(`Item ${idx} has invalid values:`, { quantity: item.quantity, unitPrice: item.unitPrice, qty, price })
+          }
+
+          return {
+            materialId: item.materialId,
+            quantity: qty,
+            unitPrice: price,
+          }
+        }),
         deliveryDate: new Date(form.deliveryDate).toISOString(),
       }
 
