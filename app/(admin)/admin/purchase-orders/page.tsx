@@ -249,18 +249,30 @@ function CreatePurchaseOrderModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    console.log('Form state at submit:', form)
-    if (!validate()) {
-      console.log('Validation failed')
-      return
-    }
+    if (!validate()) return
 
     setIsSaving(true)
     try {
-      const items = form.items.map((item) => {
-        const qty = parseFloat(item.quantity)
-        const price = parseFloat(item.unitPrice)
-        console.log('Item:', { materialId: item.materialId, formQty: item.quantity, parsedQty: qty, formPrice: item.unitPrice, parsedPrice: price })
+      // Read values from form state AND DOM to ensure we have the latest values
+      const items = form.items.map((item, idx) => {
+        let qty = parseFloat(item.quantity)
+        let price = parseFloat(item.unitPrice)
+
+        // If parseFloat resulted in NaN, try reading from DOM
+        if (isNaN(qty)) {
+          const qtyInput = document.querySelector(`input[data-item-index="${idx}"][data-field="quantity"]`) as HTMLInputElement
+          if (qtyInput?.value) {
+            qty = parseFloat(qtyInput.value)
+          }
+        }
+
+        if (isNaN(price)) {
+          const priceInput = document.querySelector(`input[data-item-index="${idx}"][data-field="unitPrice"]`) as HTMLInputElement
+          if (priceInput?.value) {
+            price = parseFloat(priceInput.value)
+          }
+        }
+
         return {
           materialId: item.materialId,
           quantity: qty,
@@ -273,8 +285,6 @@ function CreatePurchaseOrderModal({
         items,
         deliveryDate: new Date(form.deliveryDate).toISOString(),
       }
-
-      console.log('Payload being sent:', JSON.stringify(payload, null, 2))
 
       const res = await fetch('/api/admin/purchase-orders', {
         method: 'POST',
@@ -400,6 +410,8 @@ function CreatePurchaseOrderModal({
                           value={item.quantity}
                           onChange={(e) => setItemField(idx, 'quantity', e.target.value)}
                           placeholder="0"
+                          data-item-index={idx}
+                          data-field="quantity"
                           className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
                             errors[`item_${idx}_quantity`] ? 'border-red-400' : 'border-gray-300'
                           }`}
@@ -416,6 +428,8 @@ function CreatePurchaseOrderModal({
                           value={item.unitPrice}
                           onChange={(e) => setItemField(idx, 'unitPrice', e.target.value)}
                           placeholder="0.00"
+                          data-item-index={idx}
+                          data-field="unitPrice"
                           className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
                             errors[`item_${idx}_price`] ? 'border-red-400' : 'border-gray-300'
                           }`}
