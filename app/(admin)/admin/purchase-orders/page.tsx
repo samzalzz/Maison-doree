@@ -406,10 +406,18 @@ function CreatePurchaseOrderModal({
                       <div>
                         <label className="text-xs font-semibold text-gray-600 block mb-1">Qty</label>
                         <input
-                          type="text"
-                          value={item.quantity}
-                          onChange={(e) => setItemField(idx, 'quantity', e.target.value)}
+                          type="number"
+                          value={item.quantity === '0' ? '' : item.quantity}
+                          onChange={(e) => setItemField(idx, 'quantity', e.target.value || '0')}
+                          onBlur={(e) => {
+                            const val = e.target.value
+                            if (val && !isNaN(parseFloat(val))) {
+                              setItemField(idx, 'quantity', val)
+                            }
+                          }}
                           placeholder="0"
+                          step="0.01"
+                          min="0"
                           data-item-index={idx}
                           data-field="quantity"
                           className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
@@ -424,10 +432,18 @@ function CreatePurchaseOrderModal({
                       <div>
                         <label className="text-xs font-semibold text-gray-600 block mb-1">Unit Price</label>
                         <input
-                          type="text"
-                          value={item.unitPrice}
-                          onChange={(e) => setItemField(idx, 'unitPrice', e.target.value)}
+                          type="number"
+                          value={item.unitPrice === '0' ? '' : item.unitPrice}
+                          onChange={(e) => setItemField(idx, 'unitPrice', e.target.value || '0')}
+                          onBlur={(e) => {
+                            const val = e.target.value
+                            if (val && !isNaN(parseFloat(val))) {
+                              setItemField(idx, 'unitPrice', val)
+                            }
+                          }}
                           placeholder="0.00"
+                          step="0.01"
+                          min="0"
                           data-item-index={idx}
                           data-field="unitPrice"
                           className={`w-full px-2 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 ${
