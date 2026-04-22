@@ -342,8 +342,6 @@ function CreatePurchaseOrderModal({
     }
   }
 
-  const selectedMaterial = materials.find((m) => m.id === form.materialId)
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
