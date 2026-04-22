@@ -517,19 +517,30 @@ model RawMaterial {
   @@index([isIntermediate])
 }
 
+enum StockType {
+  RAW_MATERIAL
+  MID_PROCESS
+  FINISHED_PRODUCT
+}
+
 // 19. LabStock — current stock of a raw material in a specific lab
 model LabStock {
-  id           String        @id @default(cuid())
-  labId        String
-  lab          ProductionLab @relation(fields: [labId], references: [id], onDelete: Cascade)
-  materialId   String
-  material     RawMaterial   @relation(fields: [materialId], references: [id], onDelete: Cascade)
-  quantity     Decimal       @db.Decimal(10, 2)
-  minThreshold Decimal       @db.Decimal(10, 2)
-  updatedAt    DateTime      @updatedAt
+  id              String    @id @default(cuid())
+  labId           String
+  lab             ProductionLab @relation(fields: [labId], references: [id], onDelete: Cascade)
+  materialId      String
+  material        RawMaterial @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  stockType       StockType @default(RAW_MATERIAL)
+  quantity        Decimal   @db.Decimal(10, 2)
+  minThreshold    Decimal   @db.Decimal(10, 2)
+  originBatchId   String?
+  originBatch     ProductionBatch? @relation("StockOrigin", fields: [originBatchId], references: [id], onDelete: SetNull)
+  updatedAt       DateTime  @updatedAt
 
-  @@unique([labId, materialId])
+  @@unique([labId, materialId, stockType])
   @@index([labId])
+  @@index([stockType])
+  @@index([originBatchId])
 }
 
 // 20. ProductionBatch — a production run for a recipe in a lab
@@ -557,6 +568,7 @@ model ProductionBatch {
   qualityInspections  QualityInspection[]
   materialAllocations MaterialAllocation[]
   traceabilityRecords TraceabilityRecord[]
+  originStocks        LabStock[] @relation("StockOrigin")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
