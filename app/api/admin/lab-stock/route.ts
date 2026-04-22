@@ -50,8 +50,11 @@ export const GET = withAdminAuth(async (req: NextRequest) => {
       )
     }
 
+    const where: { labId: string; stockType?: string } = { labId }
+    if (stockType) where.stockType = stockType
+
     const stock = await prisma.labStock.findMany({
-      where: { labId },
+      where,
       include: {
         // Include material metadata so consumers don't need a second request
         material: {
