@@ -7,14 +7,15 @@ import { UpdateLabStockSchema } from '@/lib/validators-production'
 // ---------------------------------------------------------------------------
 // PATCH /api/admin/lab-stock/[labId]/[materialId]  (admin only)
 // ---------------------------------------------------------------------------
-// Performs an absolute stock adjustment for a specific (lab, material) pair.
+// Performs an absolute stock adjustment for a specific (lab, material, stockType) tuple.
 // The quantity field in the request body represents the NEW absolute level
 // (not a delta), making this idempotent and safe to retry.
 //
+// Query params:
+//   stockType - optional; defaults to RAW_MATERIAL for backward compatibility
+//
 // If the LabStock record does not exist yet (first stock entry for this
-// material in this lab), we create it with a default minThreshold of 0.
-// Callers who need a specific minThreshold should update it separately or
-// include it as a query parameter on future iterations.
+// material in this lab with this stock type), we create it with a default minThreshold of 0.
 //
 // Body: { quantity: number }  — must be >= 0
 // ---------------------------------------------------------------------------
@@ -23,6 +24,8 @@ export const PATCH = withAdminAuth(
   async (req: NextRequest, { params }) => {
     try {
       const { labId, materialId } = params as { labId: string; materialId: string }
+      const { searchParams } = new URL(req.url)
+      const stockType = searchParams.get('stockType') ?? 'RAW_MATERIAL'
 
       const body = await req.json().catch(() => null)
 
@@ -85,10 +88,10 @@ export const PATCH = withAdminAuth(
       }
 
       // Upsert: update existing record or create a new one if this is the
-      // first time this material is being stocked in this lab.
+      // first time this material is being stocked in this lab with this stock type.
       const stock = await prisma.labStock.upsert({
         where: {
-          labId_materialId: { labId, materialId },
+          labId_materialId_stockType: { labId, materialId, stockType },
         },
         update: {
           quantity: new Prisma.Decimal(result.data.quantity),
@@ -96,9 +99,8 @@ export const PATCH = withAdminAuth(
         create: {
           labId,
           materialId,
+          stockType,
           quantity: new Prisma.Decimal(result.data.quantity),
-          // Default minThreshold to 0; admins can adjust via a dedicated
-          // threshold management endpoint in a future iteration.
           minThreshold: new Prisma.Decimal(0),
         },
         include: {
@@ -125,14 +127,19 @@ export const PATCH = withAdminAuth(
 // ---------------------------------------------------------------------------
 // DELETE /api/admin/lab-stock/[labId]/[materialId]  (admin only)
 // ---------------------------------------------------------------------------
-// Removes a stock entry for a specific (lab, material) pair.
+// Removes a stock entry for a specific (lab, material, stockType) tuple.
 // This deletes the LabStock record entirely.
+//
+// Query params:
+//   stockType - optional; defaults to RAW_MATERIAL for backward compatibility
 // ---------------------------------------------------------------------------
 
 export const DELETE = withAdminAuth(
   async (req: NextRequest, { params }) => {
     try {
       const { labId, materialId } = params as { labId: string; materialId: string }
+      const { searchParams } = new URL(req.url)
+      const stockType = searchParams.get('stockType') ?? 'RAW_MATERIAL'
 
       // Verify both the lab and material exist
       const [lab, material] = await Promise.all([
@@ -169,7 +176,7 @@ export const DELETE = withAdminAuth(
       // Delete the stock record
       const stock = await prisma.labStock.delete({
         where: {
-          labId_materialId: { labId, materialId },
+          labId_materialId_stockType: { labId, materialId, stockType },
         },
         include: {
           material: {
