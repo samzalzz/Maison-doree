@@ -248,6 +248,21 @@ function CreatePurchaseOrderModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // Always log the form state at submission time
+    console.log('🔍 FORM STATE AT SUBMISSION:', {
+      supplierId: form.supplierId,
+      deliveryDate: form.deliveryDate,
+      items: form.items.map((item, i) => ({
+        index: i,
+        materialId: item.materialId,
+        quantity: item.quantity,
+        quantityType: typeof item.quantity,
+        unitPrice: item.unitPrice,
+        unitPriceType: typeof item.unitPrice,
+      })),
+    })
+
     if (!validate()) return
 
     setIsSaving(true)
@@ -258,6 +273,13 @@ function CreatePurchaseOrderModal({
         items: form.items.map((item, idx) => {
           const qty = parseFloat(item.quantity)
           const price = parseFloat(item.unitPrice)
+
+          console.log(`Item ${idx} values:`, {
+            raw_quantity: item.quantity,
+            raw_unitPrice: item.unitPrice,
+            parsed_qty: qty,
+            parsed_price: price
+          })
 
           // Safety check - if values are NaN, report the actual state
           if (isNaN(qty) || isNaN(price)) {
