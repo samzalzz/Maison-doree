@@ -97,31 +97,46 @@ export const PATCH = withAdminAuth(async (req: NextRequest, { params }: RouteCon
     if (input.status === 'delivered') {
       updateData.deliveredAt = input.deliveredAt ? new Date(input.deliveredAt) : now
 
-      // Increment stock for the targeted lab (if provided) or all labs that
-      // already track this material
+      // Increment RAW_MATERIAL stock for the targeted lab (if provided) or all labs
+      // that already track this material. PO deliveries always update RAW_MATERIAL stock type.
+      const { Decimal } = require('@prisma/client/runtime/library')
+
       if (input.labId) {
         await prisma.labStock.upsert({
-          where: { labId_materialId: { labId: input.labId, materialId: po.materialId } },
+          where: {
+            labId_materialId_stockType: {
+              labId: input.labId,
+              materialId: po.materialId,
+              stockType: 'RAW_MATERIAL'
+            }
+          },
           create: {
             labId: input.labId,
             materialId: po.materialId,
-            quantity: po.quantity,
-            minThreshold: 0,
+            stockType: 'RAW_MATERIAL',
+            quantity: new Decimal(po.quantity.toString()),
+            minThreshold: new Decimal(0),
           },
-          update: { quantity: { increment: po.quantity } },
+          update: { quantity: { increment: new Decimal(po.quantity.toString()) } },
         })
       } else {
-        // Distribute to all labs that have an existing stock row for this material
+        // Distribute to all labs that have an existing RAW_MATERIAL stock row for this material
         const existingStocks = await prisma.labStock.findMany({
-          where: { materialId: po.materialId },
+          where: { materialId: po.materialId, stockType: 'RAW_MATERIAL' },
           select: { labId: true, materialId: true },
         })
         if (existingStocks.length > 0) {
           await Promise.all(
             existingStocks.map((s) =>
               prisma.labStock.update({
-                where: { labId_materialId: { labId: s.labId, materialId: s.materialId } },
-                data: { quantity: { increment: po.quantity } },
+                where: {
+                  labId_materialId_stockType: {
+                    labId: s.labId,
+                    materialId: s.materialId,
+                    stockType: 'RAW_MATERIAL'
+                  }
+                },
+                data: { quantity: { increment: new Decimal(po.quantity.toString()) } },
               }),
             ),
           )
