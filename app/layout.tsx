@@ -2,7 +2,6 @@ import React from 'react'
 import type { Metadata } from 'next'
 import './globals.css'
 import Providers from './providers'
-import { ToastProvider } from '@/lib/context/ToastContext'
 import { ToastContainer } from '@/components/ui/ToastContainer'
 
 export const metadata: Metadata = {
@@ -19,10 +18,8 @@ export default function RootLayout({
     <html lang="fr">
       <body>
         <Providers>
-          <ToastProvider>
-            {children}
-            <ToastContainer />
-          </ToastProvider>
+          {children}
+          <ToastContainer />
         </Providers>
       </body>
     </html>
