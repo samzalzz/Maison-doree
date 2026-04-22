@@ -1419,3 +1419,119 @@ model TraceabilityRecord {
   @@index([batchId])
   @@index([timestamp])
 }
+
+// ============================================================================
+// PHASE 7: SELL ORDERS (B2B DISTRIBUTION)
+// ============================================================================
+
+enum SellOrderStatus {
+  DRAFT       // Order created, not yet confirmed
+  CONFIRMED   // Confirmed by admin
+  PICKING     // Items being picked from stock
+  SHIPPED     // Ready for delivery/shipped
+  DELIVERED   // Delivered to customer
+  CANCELLED   // Cancelled
+}
+
+// Customer — B2B wholesale/distribution customers
+model Customer {
+  id                String   @id @default(cuid())
+  name              String
+  email             String?
+  phone             String?
+  address           String?
+  city              String?
+  zipCode           String?
+  contactPerson     String?
+  paymentTermsDays  Int      @default(30)
+  creditLimit       Decimal? @db.Decimal(12, 2)
+  status            String   @default("ACTIVE")
+  notes             String?
+
+  // Relations
+  sellOrders SellOrder[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([name])
+  @@index([status])
+}
+
+// SellOrder — B2B distribution orders (consumes finished product stock)
+model SellOrder {
+  id               String          @id @default(cuid())
+  orderNumber      String          @unique
+  customerId       String
+  customer         Customer        @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  status           SellOrderStatus @default(DRAFT)
+  subtotal         Decimal         @db.Decimal(12, 2)
+  taxAmount        Decimal         @db.Decimal(12, 2)
+  totalPrice       Decimal         @db.Decimal(12, 2)
+
+  deliveryDate     DateTime?
+  shippedAt        DateTime?
+  deliveredAt      DateTime?
+
+  // Relations
+  items            SellOrderItem[]
+  invoices         Invoice[]
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// SellOrderItem — line items in a sell order
+model SellOrderItem {
+  id              String       @id @default(cuid())
+  sellOrderId     String
+  sellOrder       SellOrder    @relation(fields: [sellOrderId], references: [id], onDelete: Cascade)
+
+  // Reference finished product material from LabStock
+  labStockId      String       // References LabStock (FINISHED_PRODUCT)
+  materialId      String       // Material that was produced
+  material        RawMaterial  @relation(fields: [materialId], references: [id])
+
+  quantity        Decimal      @db.Decimal(10, 2)
+  unitPrice       Decimal      @db.Decimal(10, 2)
+  lineTotal       Decimal      @db.Decimal(12, 2)
+
+  createdAt       DateTime     @default(now())
+
+  @@index([sellOrderId])
+  @@index([materialId])
+}
+
+// ============================================================================
+// PHASE 9: INVOICES
+// ============================================================================
+
+model Invoice {
+  id              String       @id @default(cuid())
+  invoiceNumber   String       @unique
+  sellOrderId     String
+  sellOrder       SellOrder    @relation(fields: [sellOrderId], references: [id], onDelete: Restrict)
+
+  issueDate       DateTime     @default(now())
+  dueDate         DateTime
+  paidDate        DateTime?
+
+  subtotal        Decimal      @db.Decimal(12, 2)
+  taxAmount       Decimal      @db.Decimal(12, 2)
+  totalAmount     Decimal      @db.Decimal(12, 2)
+
+  notes           String?
+  pdfPath         String?      // Path to generated PDF
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@index([sellOrderId])
+  @@index([invoiceNumber])
+  @@index([dueDate])
+}
