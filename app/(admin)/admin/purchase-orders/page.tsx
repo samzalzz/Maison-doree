@@ -253,50 +253,17 @@ function CreatePurchaseOrderModal({
 
     setIsSaving(true)
     try {
-      console.log('=== PO Form Submission Debug ===')
-      console.log('Form state:', form)
-
-      // Read values from form state AND DOM to ensure we have the latest values
-      const items = form.items.map((item, idx) => {
-        let qty = parseFloat(item.quantity)
-        let price = parseFloat(item.unitPrice)
-
-        console.log(`Item ${idx} before DOM check:`, { quantity: item.quantity, unitPrice: item.unitPrice, qty, price })
-
-        // If parseFloat resulted in NaN, try reading from DOM
-        if (isNaN(qty)) {
-          const qtyInput = document.querySelector(`input[data-item-index="${idx}"][data-field="quantity"]`) as HTMLInputElement
-          if (qtyInput?.value) {
-            qty = parseFloat(qtyInput.value)
-            console.log(`Item ${idx} qty from DOM:`, qtyInput.value, '→', qty)
-          }
-        }
-
-        if (isNaN(price)) {
-          const priceInput = document.querySelector(`input[data-item-index="${idx}"][data-field="unitPrice"]`) as HTMLInputElement
-          if (priceInput?.value) {
-            price = parseFloat(priceInput.value)
-            console.log(`Item ${idx} price from DOM:`, priceInput.value, '→', price)
-          }
-        }
-
-        console.log(`Item ${idx} final:`, { materialId: item.materialId, quantity: qty, unitPrice: price })
-
-        return {
-          materialId: item.materialId,
-          quantity: qty,
-          unitPrice: price,
-        }
-      })
+      const items = form.items.map((item) => ({
+        materialId: item.materialId,
+        quantity: parseFloat(item.quantity),
+        unitPrice: parseFloat(item.unitPrice),
+      }))
 
       const payload = {
         supplierId: form.supplierId,
         items,
         deliveryDate: new Date(form.deliveryDate).toISOString(),
       }
-
-      console.log('Final payload:', payload)
-      console.log('Payload JSON:', JSON.stringify(payload))
 
       const res = await fetch('/api/admin/purchase-orders', {
         method: 'POST',
@@ -305,7 +272,6 @@ function CreatePurchaseOrderModal({
       })
 
       const json = await res.json()
-      console.log('API Response:', { ok: res.ok, status: res.status, json })
 
       if (!res.ok || !json.success) {
         toastError({
